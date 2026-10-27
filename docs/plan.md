@@ -51,7 +51,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M0 — Skeleton
 
-- [ ] **M0.1** · Verify Spring Boot 4 compatibility of Spring AI, JobRunr, springdoc, DJL, Tess4J; pick Boot 4 + Java 25 or Boot 3.5 + Java 21; record versions in `architecture.md` ADR-01 · *A1, ADR-01* · **Done when** ADR-01 states the chosen versions with the date checked.
+- [x] **M0.1** · Verify Spring Boot 4 compatibility of Spring AI, JobRunr, springdoc, DJL, Tess4J; pick Boot 4 + Java 25 or Boot 3.5 + Java 21; record versions in `architecture.md` ADR-01 · *A1, ADR-01* · **Done when** ADR-01 states the chosen versions with the date checked.
 - [ ] **M0.2** · Gradle multi-module skeleton: all modules from architecture §4, version catalog, Java toolchain, empty `app` Spring Boot main · *§4* · **Done when** `./gradlew build` passes.
 - [ ] **M0.3** · Spotless + google-java-format; `.editorconfig` · *java-style.md* · **Done when** `./gradlew spotlessCheck` runs in `build`.
 - [ ] **M0.4** · ArchUnit test module with the dependency rules from §4.1 (placeholder rules for empty modules) · *§4.1, NFR-9* · **Done when** a deliberate bad dependency fails the build (then removed).
@@ -188,3 +188,4 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 |------|----------|------|
 | 2026-10-28 | Plan v0.1 created | — |
 | 2026-10-28 | Public GitHub repo, trunk-based development, CI merge gates (coverage ≥ 85%) | M0.10 |
+| 2026-10-28 | Spring Boot 4.1.2 + Java 25 (no fallback needed); versions in architecture ADR-01 | M0.1 |

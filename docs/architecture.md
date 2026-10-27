@@ -47,7 +47,7 @@ Nothing else.
 | Concern | Choice | Notes |
 |---------|--------|-------|
 | Language / runtime | Java 25 (LTS) | Virtual threads for I/O-bound stages (LLM, storage). |
-| Framework | Spring Boot 4.x | If a key library (Spring AI, JobRunr) lacks a stable Boot 4 release at scaffold time, use Boot 3.5 + Java 21 instead (ADR-01). |
+| Framework | Spring Boot 4.x (4.1.2 chosen in M0.1) | Boot 4 + Java 25 confirmed compatible with the key libraries on 2026-10-28; versions in ADR-01. |
 | Build | Gradle, Kotlin DSL, multi-module, version catalog (`gradle/libs.versions.toml`) | Exact versions pinned there, not in this doc. |
 | LLM client | Spring AI (`ChatClient`, structured output, multimodal messages) | Providers configured per profile (EXT-3, NFR-8). |
 | File type detection | Apache Tika (core only) | ING-3 |
@@ -568,7 +568,7 @@ One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.pr
 
 | ID | Decision | Alternatives | Reason |
 |----|----------|--------------|--------|
-| ADR-01 | Spring Boot 4 + Java 25; fall back to Boot 3.5 + Java 21 if dependencies lag | — | Use current LTS, but never block on library compatibility. |
+| ADR-01 | Spring Boot 4 + Java 25 (chosen 2026-10-28, M0.1). Versions checked on Maven Central 2026-10-28: Boot 4.1.2, Spring AI 2.0.2 (built against Boot 4.1.2), JobRunr 9.0.2 (`jobrunr-spring-boot-4-starter`), springdoc-openapi 3.2.0 (Boot 4 line, built against 4.1.2), DJL 0.39.0 + ONNX Runtime engine 0.39.0 + HF tokenizers 0.39.0, Tess4J 5.20.0, Gradle 9.8.2. DJL and Tess4J don't depend on Spring; on Java 25 they need `--enable-native-access=ALL-UNNAMED` (JNA/JNI). | Boot 3.5 + Java 21 | Use current LTS, but never block on library compatibility. Every key library has a GA Boot 4 release, so the fallback isn't needed. |
 | ADR-02 | Modular monolith with Gradle modules | Microservices; single module | Clear boundaries and ArchUnit checks without distributed-system cost. |
 | ADR-03 | Spring AI for LLM access | LangChain4j; raw HTTP SDKs | Native Spring config, structured output, multimodal, many providers. |
 | ADR-04 | JobRunr on Postgres for the pipeline | Spring Batch; Kafka/RabbitMQ | Durable retries and a dashboard with no extra infrastructure. |
@@ -585,7 +585,7 @@ One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.pr
 
 | # | Question |
 |---|----------|
-| A1 | Confirm Boot 4 compatibility of Spring AI, JobRunr, springdoc and DJL at scaffold time (ADR-01). |
+| A1 | ~~Confirm Boot 4 compatibility of Spring AI, JobRunr, springdoc and DJL at scaffold time.~~ Resolved 2026-10-28 (M0.1): all compatible; see ADR-01. |
 | A2 | Which NER model (size vs Indian-name recall)? Benchmark two candidates on the PII label set. |
 | A3 | Which LLMs to compare in the first eval (spec R6)? |
 | A4 | Does Hindi text appear often enough to need the `hin` OCR language? |
