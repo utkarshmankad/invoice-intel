@@ -502,7 +502,7 @@ JobRunr dashboard are enough; Prometheus/Grafana are optional.
 | Component | Text extraction and redaction on fixture PDFs (synthetic invoices, no real PII) | PDFBox, Tess4J |
 | Redaction proof | After redaction, re-extract text and OCR the redacted PDF; assert no known PII string is present | PII-4 test |
 | Integration | Full pipeline with Postgres + MinIO containers and WireMock LLM | Testcontainers, WireMock |
-| Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit |
+| Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit, in `app/src/test` (`dev.invoiceintel.app.architecture`); `app` adds every module as a test-only dependency so the rules see all main classes |
 | Eval smoke | 5 redacted sample docs through the pipeline in CI with stubbed LLM; checks wiring, not accuracy | eval module |
 | Smoke | Full container stack; health, auth, upload, dedupe, pipeline status | `scripts/ci/smoke-test.sh` |
 | Performance | API latency and end-to-end time to decision under load, stubbed LLM | Gatling, `perf` module |
