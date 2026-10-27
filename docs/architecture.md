@@ -78,6 +78,7 @@ Nothing else.
 invoice-intel/
 ├── settings.gradle.kts
 ├── gradle/libs.versions.toml
+├── buildSrc/   convention plugins: java-conventions (toolchain, tests, JaCoCo, Spotless, SpotBugs, locking), mutation-testing, spring-boot-app
 ├── common/      domain model, IDs, events, money/date utils, status enums
 ├── storage/     BlobStore interface + S3 implementation
 ├── ingest/      upload handling, hashing, dedupe, Tika type detection

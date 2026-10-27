@@ -7,7 +7,7 @@ sends low-confidence documents to a review UI. Portfolio project, single user.
 
 ## Status
 
-Docs phase complete; no application code yet. Next: milestone M0 in `docs/plan.md` (start with M0.1).
+Milestone M0 in progress: Gradle skeleton and build contract exist; no features yet. Next: the first unchecked task in `docs/plan.md`.
 
 ## Source-of-truth documents
 
@@ -64,6 +64,7 @@ docker compose up -d                                         # Postgres + MinIO 
 ./gradlew :app:bootRun --args='--spring.profiles.active=local'
 ./gradlew :eval:run --args="run --dataset data/labels --strategy TEXT"
 scripts/ci/pii-guard.sh                                      # same PII check CI runs
+./gradlew resolveAndLockAll --write-locks                    # after changing dependencies
 ```
 
 CI-only checks (CodeQL, Trivy, smoke, Gatling) and how to run them locally: `docs/ci.md` §6.
