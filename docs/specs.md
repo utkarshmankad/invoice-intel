@@ -1,6 +1,6 @@
 # Invoice Intel — Product Specification
 
-> Status: Draft v0.2 · Owner: Utkarsh Mankad · Last updated: 2026-10-28
+> Status: Draft v0.3 · Owner: Utkarsh Mankad · Last updated: 2026-10-28
 >
 > This document defines **what** the system does and **why**. It deliberately avoids
 > implementation detail — that lives in `architecture.md`. Execution order lives in `plan.md`.
@@ -275,6 +275,7 @@ product descriptions are **not** PII for this system and are preserved.
 | NFR-10 | Deployability | The app runs as a single container whose memory use stays ≤ 2 GB, so it can move to a small cloud machine unchanged. |
 | NFR-11 | Deployability | File storage goes through an S3-compatible interface (MinIO locally; S3-compatible object storage in the cloud). |
 | NFR-12 | Deployability | All environment-specific settings (DB URL, storage endpoint, LLM keys) come from environment variables or a secrets store; no secrets in the repository. |
+| NFR-13 | Quality gates | Changes reach `main` only through a pull request that passes CI: unit tests, integration tests, merged line coverage ≥ 85%, security checks (SAST, dependency and container vulnerabilities, secret and PII scanning), smoke test and performance test. Gates and thresholds are defined in `ci.md`. |
 
 ### 8.1 Technical constraints
 
@@ -352,3 +353,4 @@ revision is recorded in this document.
 |---------|------|--------|
 | 0.1 | 2026-10-28 | Initial draft. |
 | 0.2 | 2026-10-28 | Local-first execution with remote LLM APIs (§8.2). Fly.io deployment planned as Phase 2. PII-1 tightened to cover all remote LLM APIs. Added NFR-10 to NFR-12 and risks R8, R9. |
+| 0.3 | 2026-10-28 | Added NFR-13: trunk-based development with CI merge gates (coverage ≥ 85%, unit, integration, security, smoke, performance), requested by the owner. |
