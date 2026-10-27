@@ -16,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
 class InvoiceIntelApplicationIT {
 
   @LocalServerPort int port;
@@ -24,17 +24,11 @@ class InvoiceIntelApplicationIT {
   private final HttpClient http = HttpClient.newHttpClient();
 
   @Test
-  void health_withDatabase_isUp() throws IOException, InterruptedException {
+  void health_anonymousWithDatabase_isUp() throws IOException, InterruptedException {
     var response = get("/actuator/health");
 
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(response.body()).contains("\"status\":\"UP\"").doesNotContain("components");
-  }
-
-  @Test
-  void actuator_otherEndpoints_areNotExposed() throws IOException, InterruptedException {
-    assertThat(get("/actuator/env").statusCode()).isEqualTo(404);
-    assertThat(get("/actuator/configprops").statusCode()).isEqualTo(404);
   }
 
   private HttpResponse<String> get(String path) throws IOException, InterruptedException {

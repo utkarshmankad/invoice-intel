@@ -19,7 +19,19 @@ import org.springframework.validation.annotation.Validated;
  */
 @Validated
 @ConfigurationProperties("invoice-intel")
-public record InvoiceIntelProperties(@Valid @NotNull Storage storage, @Valid @NotNull Text text) {
+public record InvoiceIntelProperties(
+    @Valid @NotNull Security security, @Valid @NotNull Storage storage, @Valid @NotNull Text text) {
+
+  /**
+   * The single admin user (NFR-2, architecture.md §11); the password comes from the environment.
+   */
+  public record Security(@NotBlank String adminUsername, @NotBlank String adminPassword) {
+
+    @Override
+    public String toString() {
+      return "Security[adminUsername=" + adminUsername + ", adminPassword=****]";
+    }
+  }
 
   /** Object storage (architecture.md §9.1). Access keys stay in the environment only. */
   public record Storage(

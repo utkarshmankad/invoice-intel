@@ -7,6 +7,7 @@ dependencies {
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.flyway)
