@@ -99,11 +99,11 @@ primary_region = "bom"          # fall back to "sin" if bom is unavailable
 kill_timeout = "300s"           # let in-flight jobs finish on shutdown; check Fly's current maximum
 
 [build]
-  image = "registry.fly.io/invoice-intel:latest"
+  dockerfile = "Dockerfile"     # multi-stage build incl. Tesseract (architecture.md ADR-07)
 
 [env]
   SPRING_PROFILES_ACTIVE = "fly"
-  JAVA_TOOL_OPTIONS = "-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+  JAVA_TOOL_OPTIONS = "-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
   S3_BUCKET_RAW = "invoice-intel-raw"
   S3_BUCKET_REDACTED = "invoice-intel-redacted"
 
@@ -148,10 +148,9 @@ Mitigations, in order of preference:
 
 ## 7. Deployment steps
 
-1. Build and push the image (Jib, no Dockerfile needed):
+1. Check the image builds and starts locally:
    ```bash
-   fly auth docker
-   ./gradlew :app:jib --image=registry.fly.io/invoice-intel:latest
+   docker build -t invoice-intel:local .
    ```
 2. Create the app (first time only):
    ```bash
@@ -161,9 +160,9 @@ Mitigations, in order of preference:
    ```bash
    fly secrets set DB_URL=... DB_USER=... DB_PASSWORD=... S3_ENDPOINT=... S3_ACCESS_KEY=... S3_SECRET_KEY=... VAULT_KEYSET=...
    ```
-4. Deploy:
+4. Deploy (Fly builds the image from the `Dockerfile` and pushes it to its registry):
    ```bash
-   fly deploy
+   fly deploy --image-label $(git rev-parse --short HEAD)
    ```
 5. Verify:
    ```bash
@@ -205,7 +204,7 @@ fly releases
 fly deploy --image registry.fly.io/invoice-intel:<previous-tag>
 ```
 
-Tag every image with the Git commit SHA (in addition to `latest`) so earlier releases can be redeployed.
+Every deploy is labelled with the Git commit SHA (step 4), so `fly releases` shows which commit each release came from and earlier images can be redeployed.
 
 ---
 
