@@ -7,7 +7,7 @@ sends low-confidence documents to a review UI. Portfolio project, single user.
 
 ## Status
 
-Docs phase. No application code yet. Next step: `docs/plan.md`, then the M0 skeleton.
+Docs phase complete; no application code yet. Next: milestone M0 in `docs/plan.md` (start with M0.1).
 
 ## Source-of-truth documents
 
