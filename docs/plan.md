@@ -2,8 +2,8 @@
 
 > Status: v0.1 · Last updated: 2026-10-28
 >
-> Execution order for `specs.md` and `architecture.md`. One task = one commit.
-> Tick `[x]` in the same commit that finishes the task. New work found along the way goes
+> Execution order for `specs.md` and `architecture.md`. One task = one short-lived branch =
+> one squash-merged PR (trunk-based, `docs/ci.md`). Tick `[x]` in the PR that finishes the task. New work found along the way goes
 > under **Follow-ups**, not into the current task.
 >
 > Task format: `ID` · what to do · *refs* · **Done when**.
@@ -12,18 +12,21 @@
 
 ## Milestone overview
 
-| Milestone | Goal | Branch | Depends on |
-|-----------|------|--------|------------|
-| D | Owner data preparation (runs in parallel) | — | — |
-| M0 | Buildable skeleton, local stack, CI | `m0-skeleton` | — |
-| M1 | Ingest and text extraction | `m1-ingest-text` | M0 |
-| M2 | PII detection, tokens, redaction, PII gate | `m2-pii` | M1 |
-| M3 | LLM extraction and pipeline wiring | `m3-extract` | M2 |
-| M4 | Validation rules and decisions | `m4-validate` | M3 |
-| M5 | Eval harness and first baseline | `m5-eval` | M4, D3–D5 |
-| M6 | Order-history import and reconciliation | `m6-reconcile` | M4, D2 |
-| M7 | Review UI | `m7-review` | M4 |
-| M8 | Case study, redacted samples, release | `m8-release` | M5, M6, M7 |
+| Milestone | Goal | Depends on |
+|-----------|------|------------|
+| D | Owner data preparation (runs in parallel) | — |
+| M0 | Buildable skeleton, local stack, CI build contract | — |
+| M1 | Ingest and text extraction | M0 |
+| M2 | PII detection, tokens, redaction, PII gate | M1 |
+| M3 | LLM extraction and pipeline wiring | M2 |
+| M4 | Validation rules and decisions | M3 |
+| M5 | Eval harness and first baseline | M4, D3–D5 |
+| M6 | Order-history import and reconciliation | M4, D2 |
+| M7 | Review UI | M4 |
+| M8 | Case study, redacted samples, release | M5, M6, M7 |
+
+Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
+`feat/m1.3-upload-endpoint`). Every PR must pass the `CI gate` check before squash merge.
 
 **Critical path:** M0 → M1 → M2 → M3 → M4 → M5. M6 and M7 can run in either order after M4.
 
@@ -50,17 +53,22 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M0.4** · ArchUnit test module with the dependency rules from §4.1 (placeholder rules for empty modules) · *§4.1, NFR-9* · **Done when** a deliberate bad dependency fails the build (then removed).
 - [ ] **M0.5** · `compose.yaml` (Postgres, MinIO + bucket init), all bound to `127.0.0.1`; `.env.example` · *NFR-2, NFR-7, §14* · **Done when** `docker compose up -d` gives a reachable DB and two buckets.
 - [ ] **M0.6** · Profiles `local` / `test`; typed `@ConfigurationProperties` skeleton under `invoice-intel.*`; Flyway V1 with `document` table; Actuator health · *§10, NFR-12* · **Done when** app starts locally and `/actuator/health` is UP.
-- [ ] **M0.7** · Spring Security form login with single admin user from env · *NFR-2, §11* · **Done when** everything except health requires login (test).
+- [ ] **M0.7** · Spring Security: single admin user from env, form login for UI, HTTP Basic for `/api/**` · *NFR-2, §11* · **Done when** everything except health requires login; anonymous `/api/**` gets 401 (test).
 - [ ] **M0.8** · Structured JSON logging with `documentId`/`stage` MDC; PII-mask backstop filter (pattern list stub) · *NFR-6, PII-8* · **Done when** log test shows masked phone/email.
 - [ ] **M0.9** · Multi-stage `Dockerfile` (Temurin + `tesseract-ocr`) · *ADR-07, NFR-10* · **Done when** image builds and starts with `local` profile.
-- [ ] **M0.10** · GitHub Actions: build + tests on push · *NFR-9* · **Done when** workflow file runs green locally with `act` or on first push (owner pushes).
+- [x] **M0.10** · GitHub repo, trunk-based ruleset, CI and nightly workflows, Dependabot, PII guard, smoke/coverage/perf scripts · *NFR-9, NFR-13, ci.md* · **Done when** files exist (this task was done before M0.1).
 - [ ] **M0.11** · `Makefile` (or script) for `up`, `run`, `test`, `down` · *NFR-7* · **Done when** `make up run` starts the stack.
+- [ ] **M0.12** · Test build contract: `integrationTest` source set and task; JaCoCo `jacocoUnitReport`, `jacocoIntegrationReport`, `jacocoMergedReport` (CSV + HTML) and `jacocoMergedCoverageVerification` (line ≥ `minCoverage`, default 85) · *NFR-13, ci.md §3* · **Done when** `unit-tests`, `integration-tests` and `coverage` jobs pass on a PR.
+- [ ] **M0.13** · SpotBugs + FindSecBugs (`spotbugsMain`), PIT plugin configured for `pii` and `validate`, Gradle dependency locking · *NFR-13* · **Done when** `static-analysis` job passes and `./gradlew :pii:pitest` runs.
+- [ ] **M0.14** · `compose.ci.yaml`: app container from `invoice-intel:ci` (2 GB limit), WireMock LLM stub with 800 ms latency, throwaway keys · *NFR-10, NFR-13, ci.md §4* · **Done when** `container` and `smoke` jobs pass.
+- [ ] **M0.15** · `perf` module: Gatling Java DSL, `thresholds.conf`, health/auth simulation first (pipeline scenarios added in M4.10) · *NFR-3, NFR-13, ci.md §5* · **Done when** `performance` job runs and its assertions gate the PR.
+- [ ] **M0.16** · First fully green `CI gate` on a PR with all jobs running (none skipped except PR-only ones on `main`) · *NFR-13* · **Done when** green run linked in the Decisions log.
 
 ---
 
 ## M1 — Ingest and text
 
-- [ ] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md* · **Done when** generator produces 3 fixture types used by tests.
+- [ ] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md* · **Done when** generator produces 3 fixture types used by tests, plus the smoke fixture at `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf`.
 - [ ] **M1.2** · `storage`: `BlobStore` interface + S3 implementation; Testcontainers MinIO test · *NFR-11, §9.1* · **Done when** put/get/delete tested.
 - [ ] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type.
 - [ ] **M1.4** · `pipeline`: JobRunr setup on Postgres, document state machine, stage-run table, reprocess-from-stage · *NFR-5, §5.1* · **Done when** a no-op stage chain advances a document RECEIVED → TEXT_READY and can be re-run.
@@ -110,9 +118,10 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested.
 - [ ] **M4.5** · VAL-7 amount-in-words parser (Indian numbering) · *VAL-7* · **Done when** lakh/crore/paise cases pass.
 - [ ] **M4.6** · Confidence scorer + decision (AUTO_APPROVED / NEEDS_REVIEW / FAILED) · *VAL-8, §6.6* · **Done when** decision stored with reasons.
-- [ ] **M4.7** · Validate stage job; end-to-end pipeline test RECEIVED → decision with stubbed LLM · *§5* · **Done when** integration test green.
+- [ ] **M4.7** · Validate stage job; end-to-end pipeline test RECEIVED → decision with stubbed LLM; narrow `SMOKE_EXPECT_STATUSES` in `ci.yml` to `AUTO_APPROVED,NEEDS_REVIEW` · *§5, ci.md §4* · **Done when** integration test and smoke job green.
 - [ ] **M4.8** · Document API: list, detail, reprocess · *§8* · **Done when** endpoints tested; responses contain no raw text.
 - [ ] **M4.9** · Micrometer metrics from architecture §12 · *NFR-6* · **Done when** metrics visible at `/actuator/metrics`.
+- [ ] **M4.10** · Gatling scenarios: upload/read API, end-to-end time to decision, list endpoints, with thresholds from ci.md §5 · *NFR-3, NFR-13* · **Done when** `performance` job enforces all three scenarios.
 
 ---
 
@@ -126,7 +135,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M5.6** · **Baseline run (owner):** TEXT strategy, one model, on labelled set · *G5* · **Done when** report committed to `eval-reports/` (metrics only).
 - [ ] **M5.7** · Comparison runs: VISION vs TEXT, second model · *G5, EXT-2* · **Done when** comparison report committed.
 - [ ] **M5.8** · Tune decision threshold and PII settings from results; record changes in specs §9 revision history if targets move · *§9, VAL-8* · **Done when** thresholds updated with eval evidence.
-- [ ] **M5.9** · CI eval smoke test on redacted samples with stubbed LLM · *NFR-9* · **Done when** runs in CI.
+- [ ] **M5.9** · Eval smoke test on synthetic fixtures with stubbed LLM, run as an integration test so it's part of the CI gate · *NFR-9* · **Done when** runs in the `integration-tests` job.
 
 ---
 
@@ -173,3 +182,4 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 | Date | Decision | Task |
 |------|----------|------|
 | 2026-10-28 | Plan v0.1 created | — |
+| 2026-10-28 | Public GitHub repo, trunk-based development, CI merge gates (coverage ≥ 85%) | M0.10 |

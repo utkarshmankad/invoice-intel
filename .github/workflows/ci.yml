@@ -1,0 +1,404 @@
+# Merge gate for main. Every job reports into "CI gate", the only required status check
+# (.github/rulesets/main.json). Gates and thresholds are documented in docs/ci.md.
+#
+# Jobs that need the Gradle build or the Dockerfile are skipped until those exist (plan M0);
+# skipped jobs count as passed in "CI gate".
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: "25" # set by plan M0.1 / ADR-01; change here if the fallback (21) is chosen
+  JAVA_DISTRIBUTION: temurin
+  MIN_COVERAGE: "85" # merged unit + integration line coverage, percent (docs/ci.md)
+  IMAGE: invoice-intel:ci
+
+jobs:
+  detect:
+    name: Detect project state
+    runs-on: ubuntu-latest
+    outputs:
+      has_build: ${{ steps.check.outputs.has_build }}
+      has_dockerfile: ${{ steps.check.outputs.has_dockerfile }}
+      has_perf: ${{ steps.check.outputs.has_perf }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: check
+        run: |
+          has() { [ -e "$1" ] && echo true || echo false; }
+          {
+            echo "has_build=$(has settings.gradle.kts)"
+            echo "has_dockerfile=$(has Dockerfile)"
+            echo "has_perf=$(has perf/build.gradle.kts)"
+          } >> "$GITHUB_OUTPUT"
+          [ -e settings.gradle.kts ] || echo "::notice::No Gradle build yet (before plan M0.2): build, test and runtime gates are skipped."
+
+  pr-hygiene:
+    name: PR hygiene
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - name: PR title follows Conventional Commits (becomes the squash commit)
+        uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            test
+            refactor
+            docs
+            build
+            chore
+            ci
+            perf
+            deps
+      - name: Branch name follows trunk-based convention
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD_REF" =~ ^dependabot/ ]]; then exit 0; fi
+          if [[ ! "$HEAD_REF" =~ ^(feat|fix|test|refactor|docs|build|chore|ci|perf|deps)/[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::Branch '$HEAD_REF' must look like <type>/<task-id>-<short-desc>, e.g. feat/m1.3-upload-endpoint"
+            exit 1
+          fi
+
+  repo-guards:
+    name: Repo guards (PII, secrets, workflows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: PII guard (no private data or invoice files tracked)
+        run: scripts/ci/pii-guard.sh
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_COMMENTS: "false"
+      - name: Lint workflows (actionlint)
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+  lint:
+    name: Format and style
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - run: ./gradlew spotlessCheck --no-daemon
+
+  unit-tests:
+    name: Unit tests
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Install Tesseract
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
+      - name: Run unit tests (incl. ArchUnit)
+        run: ./gradlew test jacocoUnitReport --no-daemon
+      - name: Unit coverage summary
+        if: always()
+        run: scripts/ci/coverage-summary.sh "Unit tests" build/reports/jacoco/jacocoUnitReport/jacocoUnitReport.csv
+      - name: Package coverage data
+        if: always()
+        run: find . -path '*/build/jacoco/test.exec' -print0 | tar --null -czf jacoco-unit.tgz -T -
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            jacoco-unit.tgz
+            **/build/reports/tests/test/
+            **/build/test-results/test/
+          retention-days: 14
+
+  integration-tests:
+    name: Integration tests
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Install Tesseract
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
+      - name: Run integration tests (Testcontainers, WireMock LLM stubs)
+        run: ./gradlew integrationTest jacocoIntegrationReport --no-daemon
+      - name: Integration coverage summary
+        if: always()
+        run: scripts/ci/coverage-summary.sh "Integration tests" build/reports/jacoco/jacocoIntegrationReport/jacocoIntegrationReport.csv
+      - name: Package coverage data
+        if: always()
+        run: find . -path '*/build/jacoco/integrationTest.exec' -print0 | tar --null -czf jacoco-integration.tgz -T -
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            jacoco-integration.tgz
+            **/build/reports/tests/integrationTest/
+            **/build/test-results/integrationTest/
+          retention-days: 14
+
+  coverage:
+    name: Coverage gate
+    needs: [unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unit-test-results
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: integration-test-results
+      - name: Restore coverage data
+        run: tar -xzf jacoco-unit.tgz && tar -xzf jacoco-integration.tgz
+      - name: Merged coverage report and verification
+        run: ./gradlew classes jacocoMergedReport jacocoMergedCoverageVerification -PminCoverage="$MIN_COVERAGE" --no-daemon
+      - name: Enforce minimum coverage
+        if: always()
+        run: scripts/ci/coverage-summary.sh "Merged (unit + integration)" build/reports/jacoco/jacocoMergedReport/jacocoMergedReport.csv "$MIN_COVERAGE"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/jacocoMergedReport/
+          retention-days: 14
+
+  static-analysis:
+    name: Static analysis (SpotBugs + FindSecBugs)
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - run: ./gradlew spotbugsMain --no-daemon
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: spotbugs-report
+          path: "**/build/reports/spotbugs/"
+          retention-days: 14
+
+  codeql:
+    name: CodeQL (SAST)
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: java-kotlin
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:java-kotlin"
+
+  dependencies:
+    name: Dependency vulnerabilities
+    needs: detect
+    if: needs.detect.outputs.has_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # dependency graph submission
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Submit Gradle dependency graph
+        uses: gradle/actions/dependency-submission@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Review new dependencies (fails on high/critical CVEs or disallowed licenses)
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later
+          retry-on-snapshot-warnings: true
+          comment-summary-in-pr: on-failure
+
+  container:
+    name: Container build and image scan
+    needs: detect
+    if: needs.detect.outputs.has_dockerfile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+      - name: Build image
+        run: docker build --pull -t "$IMAGE" .
+      - name: Scan image (OS packages and bundled JARs)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          trivyignores: .trivyignore
+      - name: Save image for runtime jobs
+        run: docker save "$IMAGE" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-image
+          path: image.tar.gz
+          retention-days: 3
+
+  smoke:
+    name: Smoke test
+    needs: container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: app-image
+      - name: Load image
+        run: gunzip -c image.tar.gz | docker load
+      - name: Start stack (app + Postgres + MinIO + stubbed LLM)
+        run: |
+          APP_ADMIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "::add-mask::$APP_ADMIN_PASSWORD"
+          echo "APP_ADMIN_PASSWORD=$APP_ADMIN_PASSWORD" >> "$GITHUB_ENV"
+          APP_ADMIN_PASSWORD="$APP_ADMIN_PASSWORD" docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
+      - name: Run smoke checks
+        env:
+          # Accepted end states narrow as the pipeline grows; plan M4.7 sets AUTO_APPROVED,NEEDS_REVIEW.
+          SMOKE_EXPECT_STATUSES: TEXT_READY,PII_CLEAN,EXTRACTED,VALIDATED,AUTO_APPROVED,NEEDS_REVIEW
+        run: scripts/ci/smoke-test.sh http://127.0.0.1:8080
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p build/smoke
+          docker compose -f compose.yaml -f compose.ci.yaml logs --no-color > build/smoke/compose.log 2>&1 || true
+          docker compose -f compose.yaml -f compose.ci.yaml down -v || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: smoke-results
+          path: build/smoke/
+          retention-days: 14
+
+  performance:
+    name: Performance test
+    needs: [detect, smoke]
+    if: needs.detect.outputs.has_perf == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: app-image
+      - name: Load image and start stack
+        run: |
+          gunzip -c image.tar.gz | docker load
+          APP_ADMIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "::add-mask::$APP_ADMIN_PASSWORD"
+          echo "APP_ADMIN_PASSWORD=$APP_ADMIN_PASSWORD" >> "$GITHUB_ENV"
+          APP_ADMIN_PASSWORD="$APP_ADMIN_PASSWORD" docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
+      - name: Run Gatling simulations (assertions fail the job)
+        run: ./gradlew :perf:gatlingRun -Dperf.baseUrl=http://127.0.0.1:8080 -Dperf.profile=ci --no-daemon
+      - name: Performance summary
+        if: always()
+        run: scripts/ci/perf-summary.sh perf/build/reports/gatling
+      - name: Stop stack
+        if: always()
+        run: docker compose -f compose.yaml -f compose.ci.yaml down -v || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: performance-report
+          path: perf/build/reports/gatling/
+          retention-days: 14
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs:
+      - detect
+      - pr-hygiene
+      - repo-guards
+      - lint
+      - unit-tests
+      - integration-tests
+      - coverage
+      - static-analysis
+      - codeql
+      - dependencies
+      - container
+      - smoke
+      - performance
+    runs-on: ubuntu-latest
+    steps:
+      - name: All gates passed or were skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "$RESULTS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' >> "$GITHUB_STEP_SUMMARY"
+          failed="$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key')"
+          if [ -n "$failed" ]; then
+            echo "::error::Failed gates: $(echo "$failed" | tr '\n' ' ')"
+            exit 1
+          fi

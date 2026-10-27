@@ -65,6 +65,8 @@ Nothing else.
 | Observability | Micrometer, Actuator, structured JSON logs (Logback), OpenTelemetry optional | NFR-6 |
 | CLI | picocli (eval harness) | EVAL-1 |
 | Tests | JUnit 5, AssertJ, Testcontainers (Postgres, MinIO), WireMock (LLM stubs), ArchUnit | NFR-9 |
+| Quality gates | JaCoCo (≥ 85% merged line coverage), Spotless, SpotBugs + FindSecBugs, CodeQL, Trivy, gitleaks, PIT (nightly) | NFR-13, `ci.md` |
+| Performance tests | Gatling (Java DSL) in a `perf` module | NFR-3, NFR-13 |
 | Container | Multi-stage `Dockerfile` on Eclipse Temurin + `tesseract-ocr` packages | ADR-07 |
 | Local stack | Docker Compose | NFR-7 |
 
@@ -87,6 +89,7 @@ invoice-intel/
 ├── pipeline/    JobRunr job definitions, stage orchestration, state machine
 ├── app/         Spring Boot main, REST controllers, review UI, security, config profiles
 ├── eval/        picocli harness, datasets, metrics, report writers
+├── perf/        Gatling simulations and thresholds (CI performance gate)
 └── docs/
 ```
 
@@ -108,6 +111,7 @@ pipeline ◄── app, eval
 - No module except `pii` may read the vault tables or vault key.
 - No module except `extract` may create Spring AI clients.
 - `app` and `eval` are the only modules with a `main`.
+- `perf` has no project dependencies; it talks to the running app over HTTP only.
 
 ---
 
@@ -461,7 +465,9 @@ render/OCR jobs (config, default 2).
 
 ## 11. Security
 
-- Spring Security form login, one admin user (password from env). CSRF on for UI forms.
+- Spring Security, one admin user (password from env): form login for the UI (CSRF on),
+  HTTP Basic for `/api/**` so the eval CLI, smoke and performance tests can call the API
+  without a browser session.
 - All services bind to `127.0.0.1` locally (NFR-2).
 - Secrets only from env / secret store (NFR-12). `.env` is git-ignored; `.env.example` is committed.
 - Logging: a Logback filter masks anything matching the PII regex set as a backstop; code
@@ -497,6 +503,12 @@ JobRunr dashboard are enough; Prometheus/Grafana are optional.
 | Integration | Full pipeline with Postgres + MinIO containers and WireMock LLM | Testcontainers, WireMock |
 | Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit |
 | Eval smoke | 5 redacted sample docs through the pipeline in CI with stubbed LLM; checks wiring, not accuracy | eval module |
+| Smoke | Full container stack; health, auth, upload, dedupe, pipeline status | `scripts/ci/smoke-test.sh` |
+| Performance | API latency and end-to-end time to decision under load, stubbed LLM | Gatling, `perf` module |
+
+Unit tests live in `src/test`, integration tests in a separate `src/integrationTest` source
+set with its own Gradle task. Merge gates, thresholds and the Gradle task names CI depends on
+are defined in `docs/ci.md`.
 
 Test fixtures use **synthetic** invoices generated from a template (fake names, valid-format
 fake GSTINs). Real invoices never enter the test tree.
@@ -512,6 +524,9 @@ fake GSTINs). Real invoices never enter the test tree.
 | postgres | `postgres:16` | 5432 |
 | minio | `minio/minio` | 9000 (API), 9001 (console) |
 | app | built from `Dockerfile` (optional; usually run from IDE / `bootRun`) | 8080 |
+
+`compose.ci.yaml` overrides this for CI: adds the app container (2 GB memory limit) and a
+WireMock container standing in for the LLM provider, with throwaway keys.
 
 One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.profiles.active=local'`
 (wrapped in a `Makefile` or script). Tesseract is installed on the Mac via Homebrew for
@@ -545,6 +560,7 @@ One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.pr
 | NFR-9 | all | §13 |
 | NFR-10 | app, text | §10.1 |
 | NFR-11 | storage | §9.1 |
+| NFR-13 | CI workflows, perf | §13, `ci.md` |
 
 ---
 

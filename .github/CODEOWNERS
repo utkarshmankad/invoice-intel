@@ -1,0 +1,3 @@
+# Single owner. Review by a code owner is not required (solo project), but GitHub
+# requests it automatically on every PR.
+* @utkarshmankad

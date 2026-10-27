@@ -1,0 +1,2 @@
+# CVEs accepted after review. One ID per line, each with a reason and a review date, e.g.:
+# CVE-2026-12345  # not reachable: we never parse untrusted XML with this library. Review 2027-01-31.
