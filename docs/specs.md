@@ -1,9 +1,10 @@
 # Invoice Intel — Product Specification
 
-> Status: Draft v0.1 · Owner: Utkarsh Mankad · Last updated: 2026-10-28
+> Status: Draft v0.2 · Owner: Utkarsh Mankad · Last updated: 2026-10-28
 >
 > This document defines **what** the system does and **why**. It deliberately avoids
 > implementation detail — that lives in `architecture.md`. Execution order lives in `plan.md`.
+> The future cloud deployment plan lives in `deployment.md`.
 
 ---
 
@@ -176,7 +177,7 @@ product descriptions are **not** PII for this system and are preserved.
 
 | ID | Requirement |
 |----|-------------|
-| PII-1 | PII detection runs **before** any text or image is sent to a non-local LLM. A document with failed PII processing must never reach a cloud model. |
+| PII-1 | PII removal runs **before** any text or image is sent to a remote LLM API. In v1 every extraction LLM is a remote API, so no extraction call ever sees raw PII. A document with failed PII processing must never reach a remote model. |
 | PII-2 | Detection is layered: (a) rules and checksums, (b) local NER model, (c) optional local LLM. Each layer can be toggled and evaluated independently. |
 | PII-3 | Two modes: **pseudonymize** (reversible, mapping stored encrypted) and **redact** (irreversible). |
 | PII-4 | PDF redaction removes the underlying text from the content stream; drawing a box over text that is still present is not acceptable. |
@@ -263,7 +264,7 @@ product descriptions are **not** PII for this system and are preserved.
 | ID | Category | Requirement |
 |----|----------|-------------|
 | NFR-1 | Privacy | All PII rules in §6 are hard requirements, not best-effort. |
-| NFR-2 | Security | API and UI require authentication; raw files and vault are not reachable publicly. |
+| NFR-2 | Security | API and UI require authentication; raw files and vault are not reachable publicly. Locally, services bind to `localhost` only. |
 | NFR-3 | Performance | Digital-PDF invoice processed end-to-end in p95 ≤ 20 s (excluding queue wait). |
 | NFR-4 | Cost | Average LLM cost ≤ ₹1 per invoice for the default strategy; reported per run. |
 | NFR-5 | Reliability | Pipeline stages are idempotent and retryable; a failed stage does not lose the document. |
@@ -271,12 +272,23 @@ product descriptions are **not** PII for this system and are preserved.
 | NFR-7 | Reproducibility | Whole stack starts locally with one command. |
 | NFR-8 | Portability | No hard dependency on a single LLM vendor. |
 | NFR-9 | Quality | Automated tests for every validation and PII rule; CI runs tests and an eval smoke set. |
+| NFR-10 | Deployability | The app runs as a single container whose memory use stays ≤ 2 GB, so it can move to a small cloud machine unchanged. |
+| NFR-11 | Deployability | File storage goes through an S3-compatible interface (MinIO locally; S3-compatible object storage in the cloud). |
+| NFR-12 | Deployability | All environment-specific settings (DB URL, storage endpoint, LLM keys) come from environment variables or a secrets store; no secrets in the repository. |
 
 ### 8.1 Technical constraints
 
 - Backend: Java (LTS) + Spring Boot. No Python services in v1.
-- Runs on a single developer laptop (macOS) via containers.
 - Details of the stack are specified in `architecture.md`.
+
+### 8.2 Deployment phases
+
+| Phase | Where it runs | LLM | Status |
+|-------|---------------|-----|--------|
+| **Phase 1 (v1)** | Developer laptop (macOS). App, Postgres and MinIO via Docker Compose. | Remote LLM APIs, called from the laptop. | **Active** |
+| **Phase 2** | Fly.io machine for the app; managed free-tier Postgres; S3-compatible object storage. Target infra cost ≤ $15/month, excluding LLM spend. | Same remote LLM APIs. | **Planned** — see `deployment.md` |
+
+Phase 1 must not make choices that block Phase 2 (NFR-10 to NFR-12).
 
 ---
 
@@ -318,6 +330,8 @@ revision is recorded in this document.
 | R5 | Does the export include per-seller invoice splits, or only per-order totals? | Open |
 | R6 | Which cloud LLM(s) to benchmark, and budget for eval runs. | Open |
 | R7 | Is a local vision model good enough to make an all-local (zero cloud) mode viable? | Open |
+| R8 | Phase 2: Fly.io auto-stop may stop a machine while background extraction jobs are running. | Risk |
+| R9 | Phase 2: free-tier database and storage limits (pausing when idle, size caps) may change or be exceeded. | Risk |
 
 ---
 
@@ -329,3 +343,12 @@ revision is recorded in this document.
 - **ITC** — Input Tax Credit, GST paid on purchases that a registered business can offset.
 - **Straight-through rate** — share of documents processed with no human touch.
 - **Pseudonymization** — replacing PII with consistent reversible tokens; **redaction** — irreversible removal.
+
+---
+
+## 13. Revision history
+
+| Version | Date | Change |
+|---------|------|--------|
+| 0.1 | 2026-10-28 | Initial draft. |
+| 0.2 | 2026-10-28 | Local-first execution with remote LLM APIs (§8.2). Fly.io deployment planned as Phase 2. PII-1 tightened to cover all remote LLM APIs. Added NFR-10 to NFR-12 and risks R8, R9. |
