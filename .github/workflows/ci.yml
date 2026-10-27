@@ -394,9 +394,11 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "$RESULTS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "| Job | Result |"
+            echo "|-----|--------|"
+            echo "$RESULTS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
           failed="$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key')"
           if [ -n "$failed" ]; then
             echo "::error::Failed gates: $(echo "$failed" | tr '\n' ' ')"
