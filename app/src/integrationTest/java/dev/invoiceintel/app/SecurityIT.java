@@ -34,12 +34,12 @@ class SecurityIT {
   @LocalServerPort int port;
 
   @Test
-  void api_anonymous_gets401WithBasicChallenge() throws Exception {
+  void api_anonymous_gets401WithoutBrowserChallenge() throws Exception {
     var response = send(newClient(), get("/api/documents"));
 
     assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(response.headers().firstValue("WWW-Authenticate"))
-        .hasValueSatisfying(value -> assertThat(value).startsWith("Basic"));
+    // No challenge, so browsers never prompt for and cache Basic credentials (ADR-12).
+    assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
   }
 
   @Test
@@ -47,6 +47,7 @@ class SecurityIT {
     var response = send(newClient(), basic(get("/api/documents"), "not-the-password"));
 
     assertThat(response.statusCode()).isEqualTo(401);
+    assertThat(response.headers().firstValue("WWW-Authenticate")).isEmpty();
   }
 
   @Test

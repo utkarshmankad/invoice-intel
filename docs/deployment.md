@@ -87,7 +87,7 @@ Set a spending alert or limit on every paid account before the first deploy.
 | `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED` | Bucket names | `fly.toml` `[env]` |
 | `LLM_*_API_KEY` | LLM provider keys | `fly secrets set` |
 | `VAULT_KEYSET` | Encryption key for the PII vault | `fly secrets set` |
-| `APP_ADMIN_PASSWORD` (or OAuth settings) | Login | `fly secrets set` |
+| `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` (or OAuth settings) | Login; user defaults to `admin`, password is required | `fly secrets set` |
 
 Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
 

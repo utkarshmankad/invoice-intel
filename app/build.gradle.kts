@@ -11,6 +11,8 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.flyway)
+    // @SuppressFBWarnings with a justification, for findings reviewed by the owner (ADR-12).
+    compileOnly(libs.spotbugs.annotations)
     runtimeOnly(libs.flyway.database.postgresql)
     runtimeOnly(libs.postgresql)
     testImplementation(libs.spring.boot.starter.test)

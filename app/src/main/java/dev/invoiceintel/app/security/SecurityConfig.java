@@ -1,11 +1,13 @@
 package dev.invoiceintel.app.security;
 
 import dev.invoiceintel.app.config.InvoiceIntelProperties;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,6 +17,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
 /**
  * One admin user; HTTP Basic for {@code /api/**} so the eval CLI, smoke and performance tests need
@@ -26,13 +29,23 @@ import org.springframework.security.web.SecurityFilterChain;
 @ConditionalOnWebApplication(type = Type.SERVLET)
 public class SecurityConfig {
 
+  /**
+   * CSRF is off because the chain is stateless: no session cookie exists for a forged request to
+   * ride on. The remaining CSRF route is a browser that cached Basic credentials from its login
+   * prompt, so the 401 carries no {@code WWW-Authenticate} challenge and browsers never show that
+   * prompt (ADR-12). Clients send the {@code Authorization} header up front.
+   */
   @Bean
   @Order(1)
-  SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
-    // Stateless Basic auth carries no session cookie, so there is nothing for CSRF to protect.
+  @SuppressFBWarnings(
+      value = "SPRING_CSRF_PROTECTION_DISABLED",
+      justification = "Stateless Basic API without a browser credential prompt (ADR-12)")
+  SecurityFilterChain apiSecurity(HttpSecurity http) {
     return http.securityMatcher("/api/**")
         .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-        .httpBasic(Customizer.withDefaults())
+        .httpBasic(
+            basic ->
+                basic.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -41,7 +54,7 @@ public class SecurityConfig {
 
   @Bean
   @Order(2)
-  SecurityFilterChain uiSecurity(HttpSecurity http) throws Exception {
+  SecurityFilterChain uiSecurity(HttpSecurity http) {
     return http.authorizeHttpRequests(
             auth ->
                 // `/error` renders the status of a rejected request (401, 403); guarding it
