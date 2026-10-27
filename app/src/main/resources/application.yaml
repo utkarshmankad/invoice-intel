@@ -1,0 +1,32 @@
+# Shared settings for every profile (architecture.md §10). Environment-specific values come
+# from environment variables (NFR-12, deployment.md §5.1); defaults point at the local
+# compose stack and are never secrets.
+spring:
+  application:
+    name: invoice-intel
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/invoice_intel}
+    username: ${DB_USER:}
+    password: ${DB_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration
+
+invoice-intel:
+  storage:
+    endpoint: ${S3_ENDPOINT:http://127.0.0.1:9000}
+    bucket-raw: ${S3_BUCKET_RAW:raw}
+    bucket-redacted: ${S3_BUCKET_REDACTED:redacted}
+  text:
+    dpi: 300
+    ocr-languages: [eng]
+    max-concurrent-page-jobs: 2
+
+# Only health is exposed over HTTP; details stay hidden (PII-8, NFR-2).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

@@ -2,18 +2,43 @@ package dev.invoiceintel.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+@Import(TestcontainersConfiguration.class)
 class InvoiceIntelApplicationIT {
 
-  @Autowired ApplicationContext context;
+  @LocalServerPort int port;
+
+  private final HttpClient http = HttpClient.newHttpClient();
 
   @Test
-  void contextLoads_withApplicationBean() {
-    assertThat(context.getBean(InvoiceIntelApplication.class)).isNotNull();
+  void health_withDatabase_isUp() throws IOException, InterruptedException {
+    var response = get("/actuator/health");
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(response.body()).contains("\"status\":\"UP\"").doesNotContain("components");
+  }
+
+  @Test
+  void actuator_otherEndpoints_areNotExposed() throws IOException, InterruptedException {
+    assertThat(get("/actuator/env").statusCode()).isEqualTo(404);
+    assertThat(get("/actuator/configprops").statusCode()).isEqualTo(404);
+  }
+
+  private HttpResponse<String> get(String path) throws IOException, InterruptedException {
+    var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).build();
+    return http.send(request, HttpResponse.BodyHandlers.ofString());
   }
 }

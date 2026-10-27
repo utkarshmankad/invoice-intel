@@ -91,6 +91,9 @@ Set a spending alert or limit on every paid account before the first deploy.
 
 Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
 
+`application.yaml` already reads the `DB_*` and `S3_*` variables above (architecture.md §10);
+their defaults point at the local compose stack, so on Fly every one of them must be set.
+
 ### 5.2 Draft `fly.toml`
 
 ```toml

@@ -56,7 +56,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M0.3** · Spotless + google-java-format; `.editorconfig` · *java-style.md* · **Done when** `./gradlew spotlessCheck` runs in `build`.
 - [x] **M0.4** · ArchUnit test module with the dependency rules from §4.1 (placeholder rules for empty modules) · *§4.1, NFR-9* · **Done when** a deliberate bad dependency fails the build (then removed).
 - [x] **M0.5** · `compose.yaml` (Postgres, SeaweedFS S3 + bucket init; ADR-11), all bound to `127.0.0.1`; `.env.example` · *NFR-2, NFR-7, §14* · **Done when** `docker compose up -d` gives a reachable DB and two buckets.
-- [ ] **M0.6** · Profiles `local` / `test`; typed `@ConfigurationProperties` skeleton under `invoice-intel.*`; Flyway V1 with `document` table; Actuator health · *§10, NFR-12* · **Done when** app starts locally and `/actuator/health` is UP.
+- [x] **M0.6** · Profiles `local` / `test`; typed `@ConfigurationProperties` skeleton under `invoice-intel.*`; Flyway V1 with `document` table; Actuator health · *§10, NFR-12* · **Done when** app starts locally and `/actuator/health` is UP.
 - [ ] **M0.7** · Spring Security: single admin user from env, form login for UI, HTTP Basic for `/api/**` · *NFR-2, §11* · **Done when** everything except health requires login; anonymous `/api/**` gets 401 (test).
 - [ ] **M0.8** · Structured JSON logging with `documentId`/`stage` MDC; PII-mask backstop filter (pattern list stub) · *NFR-6, PII-8* · **Done when** log test shows masked phone/email.
 - [ ] **M0.9** · Multi-stage `Dockerfile` (Temurin + `tesseract-ocr`) · *ADR-07, NFR-10* · **Done when** image builds and starts with `local` profile.
@@ -184,6 +184,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] architecture §4.1 lists no module allowed to depend on `ingest`, so the ArchUnit rule forbids all access; M1.3's upload endpoint in `app` (or `pipeline`) will need `ingest` added to §4.1 first · found in M0.4
 - [ ] specs.md NFR-11 and §8 Phase 1 still say "MinIO locally"; local S3 is SeaweedFS since ADR-11 (needs owner approval to edit specs) · found in M0.5
 - [ ] `ci.yml` smoke step name still says "MinIO"; rename when `compose.ci.yaml` lands · found in M0.5
+- [ ] Two integration-test contexts (`RANDOM_PORT` web vs. mock) each start a Postgres container; share one context or a singleton container once more ITs exist · found in M0.6
 - [ ] §4.1 "no module except `pii` may read the vault tables or vault key" has no ArchUnit rule yet; add it with the vault types (M2.5) or the PII-gate rules (M2.11) · found in M0.4
 
 ---
