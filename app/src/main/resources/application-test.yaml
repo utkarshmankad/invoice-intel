@@ -1,0 +1,5 @@
+# `test`: Postgres from Testcontainers via @ServiceConnection, which replaces the datasource
+# settings (architecture.md §10). No network LLM calls.
+spring:
+  main:
+    banner-mode: off

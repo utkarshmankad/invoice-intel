@@ -387,6 +387,10 @@ All tables have `id UUID`, `created_at`, `updated_at`. JSONB where the shape is 
 
 JobRunr creates and owns its own tables.
 
+Flyway migrations live in `app/src/main/resources/db/migration` (`V{n}__{description}.sql`)
+and run on app start. `document.status` has a `CHECK` listing the states of §5.1, so adding a
+state needs a migration; `failed_stage`/`failure_code` are set exactly when status is `FAILED`.
+
 ---
 
 ## 8. API
@@ -451,6 +455,22 @@ for PII evaluation.
 Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 `pipeline.*` (thresholds, concurrency), `pii.*` (detector toggles, mode), `llm.models[]`,
 `storage.*`, `text.*` (DPI, OCR languages).
+
+- Shared settings are in `app/src/main/resources/application.yaml`; each value that differs
+  per environment reads an environment variable (`DB_URL`, `DB_USER`, `DB_PASSWORD`,
+  `S3_ENDPOINT`, `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED`; NFR-12) with a default that points at
+  the local compose stack. Defaults are never secrets; credentials default to empty.
+- `application-local.yaml` binds the server to `127.0.0.1` and imports the git-ignored `.env`
+  from the repository root (`spring.config.import: optional:file:.env[.properties]`; `bootRun`
+  runs in the root). `.env` is read as a properties file, so values are unquoted `KEY=value`.
+- `application-test.yaml`: Postgres comes from Testcontainers via `@ServiceConnection`
+  (`TestcontainersConfiguration` in `app/src/integrationTest`).
+- The `fly` profile is added in Phase 2 (`deployment.md`).
+- The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
+  (`storage`, `text` so far), validated at start-up. A group moves into its own module when
+  that module gets Spring wiring; `pipeline`, `pii` and `llm` are added by the tasks that use
+  them.
+- Actuator exposes only `/actuator/health` over HTTP, without details.
 
 ### 10.1 Memory budget (NFR-10, 2 GB container)
 
@@ -535,6 +555,10 @@ WireMock container standing in for the LLM provider, with throwaway keys.
 One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.profiles.active=local'`
 (wrapped in a `Makefile` or script). Tesseract is installed on the Mac via Homebrew for
 `bootRun`, and inside the image via `apt`.
+
+Testcontainers needs to find the Docker socket. With colima, set
+`DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` and
+`TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock` before `./gradlew build`.
 
 ---
 

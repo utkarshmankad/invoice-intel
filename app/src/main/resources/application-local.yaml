@@ -1,0 +1,8 @@
+# `local`: compose Postgres + SeaweedFS (architecture.md §10, §14). Values such as DB_USER come
+# from the git-ignored .env in the repository root (bootRun runs there).
+spring:
+  config:
+    import: optional:file:.env[.properties]
+
+server:
+  address: 127.0.0.1
