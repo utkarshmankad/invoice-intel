@@ -30,7 +30,7 @@
                        ┌──────────────────────────── Invoice Intel (one Spring Boot app) ───────────────────────────┐
  Owner (browser) ────► │  REST API + Review UI ──► Pipeline (JobRunr jobs) ──► Postgres                              │
                        │                               │                        ▲                                   │
- Eval CLI ───────────► │                               ├──► Object storage (MinIO / R2)                             │
+ Eval CLI ───────────► │                               ├──► Object storage (SeaweedFS / R2)                         │
                        │                               │                                                            │
                        │                               └──► Remote LLM APIs  (redacted content only)  ───────────────┼──► LLM providers
                        └─────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -58,13 +58,13 @@ Nothing else.
 | Encryption | Google Tink (AEAD for vault, deterministic MAC for tokens) | PII-3, PII-7 |
 | Jobs | JobRunr, Postgres storage | NFR-5 |
 | Database | PostgreSQL 16+, Flyway, Spring Data JPA (+ JSONB via Hibernate JSON mapping) | |
-| Object storage | AWS SDK v2 S3 client | MinIO locally, R2 in Phase 2 (NFR-11) |
+| Object storage | AWS SDK v2 S3 client | SeaweedFS S3 gateway locally (ADR-11), R2 in Phase 2 (NFR-11) |
 | Web / API | Spring Web MVC, springdoc-openapi, Bean Validation | G6 |
 | Review UI | Thymeleaf + HTMX | REV-1 to REV-4 |
 | Security | Spring Security, form login, single admin user (v1) | NFR-2 |
 | Observability | Micrometer, Actuator, structured JSON logs (Logback), OpenTelemetry optional | NFR-6 |
 | CLI | picocli (eval harness) | EVAL-1 |
-| Tests | JUnit 5, AssertJ, Testcontainers (Postgres, MinIO), WireMock (LLM stubs), ArchUnit | NFR-9 |
+| Tests | JUnit 5, AssertJ, Testcontainers (Postgres, SeaweedFS), WireMock (LLM stubs), ArchUnit | NFR-9 |
 | Quality gates | JaCoCo (≥ 85% merged line coverage), Spotless, SpotBugs + FindSecBugs, CodeQL, Trivy, gitleaks, PIT (nightly) | NFR-13, `ci.md` |
 | Performance tests | Gatling (Java DSL) in a `perf` module | NFR-3, NFR-13 |
 | Container | Multi-stage `Dockerfile` on Eclipse Temurin + `tesseract-ocr` packages | ADR-07 |
@@ -421,7 +421,9 @@ No endpoint returns raw text, original files or vault values.
 | `raw` | `raw/{documentId}/original.{ext}`, `raw/{documentId}/pages/{n}.png` | Originals and page renders (PII) |
 | `redacted` | `redacted/{documentId}/pages/{n}.png`, `redacted/{documentId}/document.pdf` | Safe to show in UI |
 
-Both buckets are private. Locally they are two MinIO buckets.
+Both buckets are private. Locally they are two SeaweedFS buckets, created by the
+`seaweedfs-init` service in `compose.yaml`; names come from `S3_BUCKET_RAW` and
+`S3_BUCKET_REDACTED` (defaults `raw`, `redacted`).
 
 ### 9.2 Files in the repo
 
@@ -442,8 +444,8 @@ for PII evaluation.
 
 | Profile | Database | Storage | LLM | Notes |
 |---------|----------|---------|-----|-------|
-| `local` | Compose Postgres | Compose MinIO | Remote APIs via keys in `.env` | Binds to `127.0.0.1` |
-| `test` | Testcontainers | Testcontainers MinIO | WireMock stubs | No network LLM calls |
+| `local` | Compose Postgres | Compose SeaweedFS | Remote APIs via keys in `.env` | Binds to `127.0.0.1` |
+| `test` | Testcontainers | Testcontainers SeaweedFS | WireMock stubs | No network LLM calls |
 | `fly` | Managed Postgres | R2 | Remote APIs via Fly secrets | See `deployment.md` |
 
 Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
@@ -501,7 +503,7 @@ JobRunr dashboard are enough; Prometheus/Grafana are optional.
 | Unit | Every regex/checksum, every validation rule, token generation, amount-in-words parser, span merger | JUnit, AssertJ, property tests for checksums |
 | Component | Text extraction and redaction on fixture PDFs (synthetic invoices, no real PII) | PDFBox, Tess4J |
 | Redaction proof | After redaction, re-extract text and OCR the redacted PDF; assert no known PII string is present | PII-4 test |
-| Integration | Full pipeline with Postgres + MinIO containers and WireMock LLM | Testcontainers, WireMock |
+| Integration | Full pipeline with Postgres + SeaweedFS containers and WireMock LLM | Testcontainers, WireMock |
 | Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit, in `app/src/test` (`dev.invoiceintel.app.architecture`); `app` adds every module as a test-only dependency so the rules see all main classes |
 | Eval smoke | 5 redacted sample docs through the pipeline in CI with stubbed LLM; checks wiring, not accuracy | eval module |
 | Smoke | Full container stack; health, auth, upload, dedupe, pipeline status | `scripts/ci/smoke-test.sh` |
@@ -522,8 +524,9 @@ fake GSTINs). Real invoices never enter the test tree.
 
 | Service | Image | Port |
 |---------|-------|------|
-| postgres | `postgres:16` | 5432 |
-| minio | `minio/minio` | 9000 (API), 9001 (console) |
+| postgres | `postgres:16.15-alpine` | 5432 |
+| seaweedfs | `chrislusf/seaweedfs:4.51` (`weed server -s3`, ADR-11) | 9000 (S3 API; container port 8333) |
+| seaweedfs-init | same image, one-shot | creates the two buckets of §9.1 if missing |
 | app | built from `Dockerfile` (optional; usually run from IDE / `bootRun`) | 8080 |
 
 `compose.ci.yaml` overrides this for CI: adds the app container (2 GB memory limit) and a
@@ -579,6 +582,7 @@ One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.pr
 | ADR-08 | Thymeleaf + HTMX review UI | React/Vue SPA | Keeps the project in one language and one deployable. |
 | ADR-09 | Rule-based classification before PII removal | LLM classification | No LLM may see a document before PII removal (PII-1). |
 | ADR-10 | Tess4J for OCR, vision LLM as the alternative path | PaddleOCR/docTR (Python) | Spec forbids Python services in v1; the vision strategy covers hard scans. |
+| ADR-11 | SeaweedFS (`chrislusf/seaweedfs`, S3 gateway) as the local S3-compatible store (owner decision 2026-10-28, M0.5) | MinIO; Garage; RustFS; Chainguard MinIO; MinIO built from source | MinIO stopped publishing public images in late 2025 (`minio/minio` not pullable, checked 2026-10-28). SeaweedFS is Apache-2.0, has pinned tags, and the app only uses the AWS SDK S3 client (NFR-11), so no code depends on the choice. |
 
 ---
 

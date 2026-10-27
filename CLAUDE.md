@@ -47,7 +47,7 @@ One task per branch and PR. Keep changes inside the task's scope; note other fin
 
 Java 25 · Spring Boot 4.x (fallback 3.5 + Java 21, ADR-01) · Gradle Kotlin DSL multi-module
 · Spring AI · PDFBox 3 · Tess4J · OpenCV · DJL/ONNX (NER) · Google Tink · JobRunr ·
-Postgres + Flyway · MinIO/S3 · Thymeleaf + HTMX · Testcontainers · WireMock · ArchUnit.
+Postgres + Flyway · SeaweedFS/S3 · Thymeleaf + HTMX · Testcontainers · WireMock · ArchUnit.
 
 ## Modules (details: architecture.md §4)
 
@@ -59,7 +59,7 @@ architecture.md §4.1 doesn't allow.
 ## Commands (once the skeleton exists)
 
 ```bash
-docker compose up -d                                         # Postgres + MinIO on 127.0.0.1
+docker compose up -d                                         # Postgres + SeaweedFS (S3) on 127.0.0.1
 ./gradlew build                                              # compile + all tests
 ./gradlew :app:bootRun --args='--spring.profiles.active=local'
 ./gradlew :eval:run --args="run --dataset data/labels --strategy TEXT"

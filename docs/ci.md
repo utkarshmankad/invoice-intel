@@ -107,7 +107,7 @@ with a reason.
 
 ## 4. Smoke test
 
-Runs `scripts/ci/smoke-test.sh` against the full stack (app, Postgres, MinIO, WireMock LLM)
+Runs `scripts/ci/smoke-test.sh` against the full stack (app, Postgres, SeaweedFS, WireMock LLM)
 using synthetic fixtures. API calls use HTTP Basic with a password generated per run.
 
 | Check | Active from |

@@ -15,7 +15,7 @@
 |---|---|---|
 | App | Spring Boot container via Docker Compose | Same image on one Fly.io machine |
 | Database | Postgres container | Managed free-tier Postgres (Supabase or Neon) |
-| File storage | MinIO container (S3 API) | S3-compatible object storage (Cloudflare R2) |
+| File storage | SeaweedFS container (S3 API, architecture ADR-11) | S3-compatible object storage (Cloudflare R2) |
 | Background jobs | JobRunr, Postgres-backed | Same |
 | LLM | Remote APIs | Same remote APIs |
 | Secrets | `.env` file (git-ignored) | `fly secrets` |

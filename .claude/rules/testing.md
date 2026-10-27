@@ -27,7 +27,7 @@ Implements NFR-9 and architecture.md §13.
 
 ## External systems
 
-- Postgres and MinIO via Testcontainers; no shared local databases in tests.
+- Postgres and SeaweedFS (S3) via Testcontainers; no shared local databases in tests.
 - **No real LLM calls in tests.** Stub providers with WireMock; record stub responses by
   hand from the schema, not from real invoice runs.
 - Tests must pass offline (apart from pulling container images).
