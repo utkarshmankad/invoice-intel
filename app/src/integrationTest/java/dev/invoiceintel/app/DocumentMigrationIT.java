@@ -18,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 /** Flyway V1: the `document` table of architecture.md §7. */
 @SpringBootTest
 @ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
 class DocumentMigrationIT {
 
   private static final String SHA_A = "a".repeat(64);

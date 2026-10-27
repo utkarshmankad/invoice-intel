@@ -14,6 +14,8 @@ class InvoiceIntelPropertiesTest {
       new ApplicationContextRunner()
           .withUserConfiguration(PropertiesConfig.class)
           .withPropertyValues(
+              "invoice-intel.security.admin-username=admin",
+              "invoice-intel.security.admin-password=not-a-real-password",
               "invoice-intel.storage.endpoint=http://127.0.0.1:9000",
               "invoice-intel.storage.bucket-raw=raw",
               "invoice-intel.storage.bucket-redacted=redacted",
@@ -26,6 +28,8 @@ class InvoiceIntelPropertiesTest {
     runner.run(
         context -> {
           var properties = context.getBean(InvoiceIntelProperties.class);
+          assertThat(properties.security().adminUsername()).isEqualTo("admin");
+          assertThat(properties.security().adminPassword()).isEqualTo("not-a-real-password");
           assertThat(properties.storage().endpoint())
               .isEqualTo(URI.create("http://127.0.0.1:9000"));
           assertThat(properties.storage().bucketRaw()).isEqualTo("raw");
@@ -34,6 +38,20 @@ class InvoiceIntelPropertiesTest {
           assertThat(properties.text().ocrLanguages()).containsExactly("eng", "hin");
           assertThat(properties.text().maxConcurrentPageJobs()).isEqualTo(2);
         });
+  }
+
+  @Test
+  void bind_missingAdminPassword_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.security.admin-password=")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void securityToString_masksPassword() {
+    var security = new InvoiceIntelProperties.Security("admin", "not-a-real-password");
+
+    assertThat(security.toString()).contains("admin").doesNotContain("not-a-real-password");
   }
 
   @Test

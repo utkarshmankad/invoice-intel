@@ -12,6 +12,11 @@ spring:
     locations: classpath:db/migration
 
 invoice-intel:
+  # Single admin user (NFR-2, architecture.md §11). No default password: start-up fails
+  # until APP_ADMIN_PASSWORD is set.
+  security:
+    admin-username: ${APP_ADMIN_USER:admin}
+    admin-password: ${APP_ADMIN_PASSWORD:}
   storage:
     endpoint: ${S3_ENDPOINT:http://127.0.0.1:9000}
     bucket-raw: ${S3_BUCKET_RAW:raw}
