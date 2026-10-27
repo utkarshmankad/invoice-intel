@@ -55,7 +55,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M0.2** · Gradle multi-module skeleton: all modules from architecture §4, version catalog, Java toolchain, empty `app` Spring Boot main · *§4* · **Done when** `./gradlew build` passes.
 - [x] **M0.3** · Spotless + google-java-format; `.editorconfig` · *java-style.md* · **Done when** `./gradlew spotlessCheck` runs in `build`.
 - [x] **M0.4** · ArchUnit test module with the dependency rules from §4.1 (placeholder rules for empty modules) · *§4.1, NFR-9* · **Done when** a deliberate bad dependency fails the build (then removed).
-- [ ] **M0.5** · `compose.yaml` (Postgres, MinIO + bucket init), all bound to `127.0.0.1`; `.env.example` · *NFR-2, NFR-7, §14* · **Done when** `docker compose up -d` gives a reachable DB and two buckets.
+- [x] **M0.5** · `compose.yaml` (Postgres, SeaweedFS S3 + bucket init; ADR-11), all bound to `127.0.0.1`; `.env.example` · *NFR-2, NFR-7, §14* · **Done when** `docker compose up -d` gives a reachable DB and two buckets.
 - [ ] **M0.6** · Profiles `local` / `test`; typed `@ConfigurationProperties` skeleton under `invoice-intel.*`; Flyway V1 with `document` table; Actuator health · *§10, NFR-12* · **Done when** app starts locally and `/actuator/health` is UP.
 - [ ] **M0.7** · Spring Security: single admin user from env, form login for UI, HTTP Basic for `/api/**` · *NFR-2, §11* · **Done when** everything except health requires login; anonymous `/api/**` gets 401 (test).
 - [ ] **M0.8** · Structured JSON logging with `documentId`/`stage` MDC; PII-mask backstop filter (pattern list stub) · *NFR-6, PII-8* · **Done when** log test shows masked phone/email.
@@ -73,7 +73,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 ## M1 — Ingest and text
 
 - [ ] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md* · **Done when** generator produces 3 fixture types used by tests, plus the smoke fixture at `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf`.
-- [ ] **M1.2** · `storage`: `BlobStore` interface + S3 implementation; Testcontainers MinIO test · *NFR-11, §9.1* · **Done when** put/get/delete tested.
+- [ ] **M1.2** · `storage`: `BlobStore` interface + S3 implementation; Testcontainers SeaweedFS test · *NFR-11, §9.1* · **Done when** put/get/delete tested.
 - [ ] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type.
 - [ ] **M1.4** · `pipeline`: JobRunr setup on Postgres, document state machine, stage-run table, reprocess-from-stage · *NFR-5, §5.1* · **Done when** a no-op stage chain advances a document RECEIVED → TEXT_READY and can be re-run.
 - [ ] **M1.5** · `text`: PDF text layer with word boxes (PDFBox) and has-text-layer check · *TXT-1, TXT-2* · **Done when** fixture PDF yields expected words + boxes.
@@ -182,6 +182,8 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 
 - [ ] google-java-format is pinned to 1.36.1 because 1.37.0 fails under Spotless 8.10.4 on JDK 25; retry the upgrade when Spotless updates (expect Dependabot PRs for it to fail) · found in M0.2
 - [ ] architecture §4.1 lists no module allowed to depend on `ingest`, so the ArchUnit rule forbids all access; M1.3's upload endpoint in `app` (or `pipeline`) will need `ingest` added to §4.1 first · found in M0.4
+- [ ] specs.md NFR-11 and §8 Phase 1 still say "MinIO locally"; local S3 is SeaweedFS since ADR-11 (needs owner approval to edit specs) · found in M0.5
+- [ ] `ci.yml` smoke step name still says "MinIO"; rename when `compose.ci.yaml` lands · found in M0.5
 - [ ] §4.1 "no module except `pii` may read the vault tables or vault key" has no ArchUnit rule yet; add it with the vault types (M2.5) or the PII-gate rules (M2.11) · found in M0.4
 
 ---
@@ -194,3 +196,4 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 | 2026-10-28 | Public GitHub repo, trunk-based development, CI merge gates (coverage ≥ 85%) | M0.10 |
 | 2026-10-28 | Spring Boot 4.1.2 + Java 25 (no fallback needed); versions in architecture ADR-01 | M0.1 |
 | 2026-10-28 | M0.2 ships with M0.3, M0.12 and M0.13 in one PR: CI runs the whole build contract once `settings.gradle.kts` exists (owner decision) | M0.2 |
+| 2026-10-28 | Local S3 store is SeaweedFS, not MinIO (MinIO images no longer public); ADR-11 (owner decision) | M0.5 |

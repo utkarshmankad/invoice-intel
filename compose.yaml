@@ -1,0 +1,74 @@
+# Local stack (architecture.md §14, NFR-7): Postgres and an S3-compatible store (SeaweedFS,
+# ADR-11) with the `raw` and `redacted` buckets. Every port binds to 127.0.0.1 (NFR-2).
+# Values come from .env (copy .env.example); compose refuses to start without them.
+#
+#   docker compose up -d --wait
+
+name: invoice-intel
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_DB: invoice_intel
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d invoice_intel"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+    # The S3 identity file is written at start-up so the keys stay in the environment only.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf '{"identities":[{"name":"app","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' \
+          "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 \
+          -s3 -s3.config=/tmp/s3.json
+    ports:
+      - "127.0.0.1:9000:8333" # S3 API
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: creates the buckets of architecture.md §9.1 if missing, then exits.
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.51
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW:-raw}
+      S3_BUCKET_REDACTED: ${S3_BUCKET_REDACTED:-redacted}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        existing=$$(echo "s3.bucket.list" | weed shell -master=seaweedfs:9333)
+        for bucket in "$$S3_BUCKET_RAW" "$$S3_BUCKET_REDACTED"; do
+          if echo "$$existing" | grep -qw "$$bucket"; then
+            echo "bucket $$bucket exists"
+          else
+            echo "s3.bucket.create -name $$bucket" | weed shell -master=seaweedfs:9333
+          fi
+        done
+    restart: "no"
+
+volumes:
+  postgres-data:
+  seaweedfs-data:
