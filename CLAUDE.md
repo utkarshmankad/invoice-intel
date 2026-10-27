@@ -19,6 +19,7 @@ Read the relevant ones before starting any task:
 | `docs/architecture.md` | How: modules, pipeline, data model, API, ADRs | Update in the same commit as a design change; add an ADR for new decisions |
 | `docs/plan.md` | What to do next: milestones and tasks | Tick tasks as they finish |
 | `docs/ci.md` | Branching, merge gates, CI thresholds, Gradle task names CI depends on | Thresholds only loosened with the owner's approval |
+| `docs/runner.md` | Procedure and limits of the hourly scheduled milestone runner | Change via PR; the runner reads it from `main` |
 | `docs/deployment.md` | Phase 2 Fly.io plan (not active) | Keep in sync with config/profile changes |
 
 If code and docs disagree, stop and ask which one is right. Don't silently pick one.
@@ -34,7 +35,10 @@ requests that pass the `CI gate` check (`docs/ci.md`).
 4. Implement with tests (see `.claude/rules/testing.md`). Keep merged line coverage ≥ 85%.
 5. Run `./gradlew build` and `scripts/ci/pii-guard.sh`; both must pass.
 6. Tick the task in `plan.md` and commit on the branch (see `.claude/rules/git.md`).
-7. The owner pushes and opens the PR; CI must be green before squash merge.
+7. Push the branch and open the PR only when the owner asks, or when running as the
+   scheduled milestone runner (`docs/runner.md`). CI must be green before squash merge.
+
+Tasks tagged `[owner]` in `plan.md` are never done by Claude; stop and ask instead.
 
 One task per branch and PR. Keep changes inside the task's scope; note other findings in
 `plan.md` under "Follow-ups" instead of fixing them on the side.

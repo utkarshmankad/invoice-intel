@@ -18,3 +18,6 @@ out/
 *.iml
 .vscode/
 .DS_Store
+
+# Local state of the scheduled milestone runner (docs/runner.md)
+.claude/runner/

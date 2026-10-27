@@ -7,7 +7,6 @@
       "Read(./data/vault/**)",
       "Read(./.env)",
       "Read(./.env.*)",
-      "Bash(git push:*)",
       "Bash(fly deploy:*)"
     ]
   }
