@@ -1,0 +1,18 @@
+# Raw personal data — never commit
+data/raw/
+data/vault/
+data/order-history/
+*.env
+.env*
+
+# Build
+build/
+.gradle/
+out/
+*.class
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
