@@ -2,6 +2,8 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :common:dependencies --write-locks
+ch.qos.logback:logback-classic:1.5.38=integrationTestRuntimeClasspath,testRuntimeClasspath
+ch.qos.logback:logback-core:1.5.38=integrationTestRuntimeClasspath,testRuntimeClasspath
 com.github.spotbugs:spotbugs-annotations:4.10.5=spotbugs
 com.github.spotbugs:spotbugs:4.10.5=spotbugs
 com.github.stephenc.jcip:jcip-annotations:1.0-1=spotbugs
@@ -44,7 +46,7 @@ org.ow2.asm:asm-util:9.11=spotbugs
 org.ow2.asm:asm:9.11=spotbugs
 org.ow2.asm:asm:9.11.1=jacocoAnt
 org.slf4j:slf4j-api:2.0.17=spotbugsSlf4j
-org.slf4j:slf4j-api:2.0.20=spotbugs
+org.slf4j:slf4j-api:2.0.20=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,spotbugs,testCompileClasspath,testRuntimeClasspath
 org.slf4j:slf4j-simple:2.0.17=spotbugsSlf4j
 org.springframework.boot:spring-boot-dependencies:4.1.2=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.xmlresolver:xmlresolver:5.3.3=spotbugs

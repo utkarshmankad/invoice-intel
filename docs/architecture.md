@@ -500,8 +500,14 @@ render/OCR jobs (config, default 2).
   request; guarding it would turn every 401/403 into a login redirect).
 - All services bind to `127.0.0.1` locally (NFR-2).
 - Secrets only from env / secret store (NFR-12). `.env` is git-ignored; `.env.example` is committed.
-- Logging: a Logback filter masks anything matching the PII regex set as a backstop; code
-  logs only IDs, stages and codes (PII-8).
+- Logging: code logs only IDs, stages and codes (PII-8). Console logs are JSON lines in
+  Spring Boot's ECS format (`logging.structured.format.console: ecs`), with MDC fields
+  `documentId`, `stage` and `runNo` set through `dev.invoiceintel.common.logging.LogContext`
+  (NFR-6). As a backstop, `PiiMaskingJsonMembersCustomizer` (`app`, registered with
+  `logging.structured.json.customizer`) runs `PiiLogMasker` over every string value of a log
+  line (message, MDC, stack trace) and replaces PII-shaped substrings with `[EMAIL]` /
+  `[PHONE]` (ADR-13). The pattern list is a stub (email, Indian mobile) until M2.1's
+  detector regexes exist.
 - Vault key and token key are separate keys; rotating the token key requires re-tokenizing
   (documented runbook, not automated in v1).
 
@@ -615,6 +621,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-10 | Tess4J for OCR, vision LLM as the alternative path | PaddleOCR/docTR (Python) | Spec forbids Python services in v1; the vision strategy covers hard scans. |
 | ADR-11 | SeaweedFS (`chrislusf/seaweedfs`, S3 gateway) as the local S3-compatible store (owner decision 2026-10-28, M0.5) | MinIO; Garage; RustFS; Chainguard MinIO; MinIO built from source | MinIO stopped publishing public images in late 2025 (`minio/minio` not pullable, checked 2026-10-28). SeaweedFS is Apache-2.0, has pinned tags, and the app only uses the AWS SDK S3 client (NFR-11), so no code depends on the choice. |
 | ADR-12 | `/api/**`: stateless HTTP Basic with CSRF off, 401 without a `WWW-Authenticate` challenge; the FindSecBugs `SPRING_CSRF_PROTECTION_DISABLED` finding is suppressed on that one method with this ADR as justification (owner decision 2026-10-28, M0.7) | CSRF tokens on `/api/**` too; CSRF off with the default Basic challenge | No session cookie means no CSRF via cookies. Without the challenge, browsers never cache Basic credentials, which closes the other route. CSRF tokens would force the CLI, smoke script and Gatling to fetch a token and a session first. |
+| ADR-13 | Structured logs use Spring Boot's built-in ECS JSON formatter; the PII backstop is a `StructuredLoggingJsonMembersCustomizer` value processor, not a Logback filter (M0.8) | Logback `Filter` (can only accept or drop events, not rewrite them); `logstash-logback-encoder` with a masking decorator | Built into Boot, no new dependency, and the value processor reaches every string field including MDC and stack traces. Masking applies only to the JSON output, so plain-text console logging must not be re-enabled. |
 
 ---
 
