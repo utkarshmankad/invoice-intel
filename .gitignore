@@ -2,8 +2,10 @@
 data/raw/
 data/vault/
 data/order-history/
+data/labels/
 *.env
 .env*
+!.env.example
 
 # Build
 build/

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./data/raw/**)",
+      "Read(./data/order-history/**)",
+      "Read(./data/labels/**)",
+      "Read(./data/vault/**)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push:*)",
+      "Bash(fly deploy:*)"
+    ]
+  }
+}
