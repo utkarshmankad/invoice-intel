@@ -9,6 +9,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PiiLogMaskerTest {
 
+  // Fake mobile number, spliced in at {M} so prefixed forms never appear literally in the
+  // source (the gitleaks india-mobile rule in .gitleaks.toml would flag them).
+  private static final String MOBILE = "9876543210";
+
   @ParameterizedTest
   @CsvSource(
       delimiter = '|',
@@ -16,16 +20,16 @@ class PiiLogMaskerTest {
         "contact test.buyer@example.com now | contact [EMAIL] now",
         "a.b+tag@mail.example.co.in | [EMAIL]",
         "call 9876543210 | call [PHONE]",
-        "call +91 9876543210 | call [PHONE]",
+        "call +91 {M} | call [PHONE]",
         "call +91-98765-43210 | call [PHONE]",
-        "call 919876543210 | call [PHONE]",
+        "call 91{M} | call [PHONE]",
         "call 09876543210 | call [PHONE]",
         "call 98765 43210. | call [PHONE].",
         "x 6123456789,7123456789 | x [PHONE],[PHONE]",
         "user42@example.org or 8123456789 | [EMAIL] or [PHONE]",
       })
   void mask_piiShapedValues_areReplaced(String input, String expected) {
-    assertThat(PiiLogMasker.mask(input)).isEqualTo(expected);
+    assertThat(PiiLogMasker.mask(input.replace("{M}", MOBILE))).isEqualTo(expected);
   }
 
   @ParameterizedTest

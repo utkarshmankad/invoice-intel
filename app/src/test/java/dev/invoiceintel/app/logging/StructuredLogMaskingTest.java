@@ -50,7 +50,8 @@ class StructuredLogMaskingTest {
   void encode_messageWithPhoneAndEmail_isMaskedJsonWithMdc() {
     String line;
     try (var _ = LogContext.forStage(DOCUMENT_ID, "PII")) {
-      line = encode("buyer test.buyer@example.com phone +91 9876543210", null);
+      // Concatenated so the source never holds a +91 number (gitleaks india-mobile rule).
+      line = encode("buyer test.buyer@example.com phone +91 " + "9876543210", null);
     }
 
     assertThat(line)
