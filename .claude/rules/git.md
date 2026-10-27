@@ -27,9 +27,15 @@ Full branching and CI rules: `docs/ci.md`.
 - Before every commit, run `git status` and confirm nothing from `data/raw/`,
   `data/order-history/`, `data/labels/`, `.env` or key files is staged (see `pii.md`).
 
-## Never without the owner asking
+## The milestone runner
 
-- `git push` (also blocked in `.claude/settings.json`), opening or merging PRs.
+The scheduled milestone runner (`docs/runner.md`) is the owner's standing request to push
+its own task branches, open PRs labelled `auto-runner`, enable auto-merge on them, and push
+fixes to them. That authorization covers only those actions on runner task branches.
+
+## Never without the owner asking (runner included, except as above)
+
+- `git push`, opening or merging PRs.
 - Changing remotes, rulesets or repository settings.
 - Force-push, rewriting history on `main`, deleting branches or tags.
 - Lowering a CI threshold (coverage, performance) or adding a CVE to `.trivyignore`.

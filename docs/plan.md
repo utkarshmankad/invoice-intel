@@ -7,6 +7,10 @@
 > under **Follow-ups**, not into the current task.
 >
 > Task format: `ID` · what to do · *refs* · **Done when**.
+>
+> `[owner]` marks tasks only the owner can do (real data, real API keys, approvals,
+> recordings, releases). The scheduled milestone runner (`docs/runner.md`) does every other
+> task and stops to ask when it reaches an `[owner]` task.
 
 ---
 
@@ -36,12 +40,12 @@ Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
 
 Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongside M0–M4.
 
-- [ ] **D1** · Request the Amazon.in data export ("Request Your Data") · *R4, R5* · **Done when** request submitted (export can take days).
-- [ ] **D2** · Save the order-history CSV to `data/order-history/`; write down its column names (not values) in `config/order-history-mapping.yml` · *REC-1, R4* · **Done when** mapping file lists every column.
-- [ ] **D3** · Download ~20 invoices spread over 2013–2026, Amazon Retail + third-party, at least 2 credit notes, at least 3 pre-GST · *§4.3, R1* · **Done when** files are in `data/raw/`.
-- [ ] **D4** · Add 3–5 phone photos or printed-and-scanned invoices · *R2* · **Done when** files are in `data/raw/`.
-- [ ] **D5** · Hand-label the first 20 invoices (schema fields + PII spans) using the label format from M5.1 · *EVAL-3* · **Done when** 20 label files in `data/labels/`.
-- [ ] **D6** · Grow the corpus to 150–300 invoices · *§4.3* · **Done when** before M5.6.
+- [ ] **D1** · [owner] · Request the Amazon.in data export ("Request Your Data") · *R4, R5* · **Done when** request submitted (export can take days).
+- [ ] **D2** · [owner] · Save the order-history CSV to `data/order-history/`; write down its column names (not values) in `config/order-history-mapping.yml` · *REC-1, R4* · **Done when** mapping file lists every column.
+- [ ] **D3** · [owner] · Download ~20 invoices spread over 2013–2026, Amazon Retail + third-party, at least 2 credit notes, at least 3 pre-GST · *§4.3, R1* · **Done when** files are in `data/raw/`.
+- [ ] **D4** · [owner] · Add 3–5 phone photos or printed-and-scanned invoices · *R2* · **Done when** files are in `data/raw/`.
+- [ ] **D5** · [owner] · Hand-label the first 20 invoices (schema fields + PII spans) using the label format from M5.1 · *EVAL-3* · **Done when** 20 label files in `data/labels/`.
+- [ ] **D6** · [owner] · Grow the corpus to 150–300 invoices · *§4.3* · **Done when** before M5.6.
 
 ---
 
@@ -106,7 +110,8 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M3.5** · `VISION` and `HYBRID` strategies using redacted page images · *EXT-2* · **Done when** strategy selectable per run and tested with stubs.
 - [ ] **M3.6** · Evidence mapping (line markers → word boxes) · *§5.3, REV-2* · **Done when** fields carry page + bbox in tests.
 - [ ] **M3.7** · `LeakChecker` after extraction · *PII-6* · **Done when** stubbed leaking response fails the document with `PII_LEAK`.
-- [ ] **M3.8** · Extract stage job; first manual run on 3 real invoices by the owner with a real API key · *§5.2* · **Done when** owner confirms 3 documents reach EXTRACTED (owner shares only status/metrics).
+- [ ] **M3.8** · Extract stage job wired into the pipeline · *§5.2* · **Done when** synthetic fixture reaches EXTRACTED with stubbed LLM (integration test).
+- [ ] **M3.9** · [owner] · First manual run on 3 real invoices with a real API key · *§5.2* · **Done when** owner confirms 3 documents reach EXTRACTED (owner shares only status/metrics).
 
 ---
 
@@ -132,8 +137,8 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M5.3** · Field accuracy and line-item F1 metrics · *EVAL-2* · **Done when** unit tests on hand-made label/output pairs.
 - [ ] **M5.4** · PII recall/precision metric (span overlap ≥ 50%) · *EVAL-2, §6.3* · **Done when** tested on synthetic spans.
 - [ ] **M5.5** · Decision metrics (straight-through, false auto-approval), cost, p50/p95 latency; Markdown + CSV + `config.json` reports · *EVAL-2, EVAL-4, NFR-3, NFR-4* · **Done when** report written for a fixture run.
-- [ ] **M5.6** · **Baseline run (owner):** TEXT strategy, one model, on labelled set · *G5* · **Done when** report committed to `eval-reports/` (metrics only).
-- [ ] **M5.7** · Comparison runs: VISION vs TEXT, second model · *G5, EXT-2* · **Done when** comparison report committed.
+- [ ] **M5.6** · [owner] · **Baseline run (owner):** TEXT strategy, one model, on labelled set · *G5* · **Done when** report committed to `eval-reports/` (metrics only).
+- [ ] **M5.7** · [owner] · Comparison runs: VISION vs TEXT, second model · *G5, EXT-2* · **Done when** comparison report committed.
 - [ ] **M5.8** · Tune decision threshold and PII settings from results; record changes in specs §9 revision history if targets move · *§9, VAL-8* · **Done when** thresholds updated with eval evidence.
 - [ ] **M5.9** · Eval smoke test on synthetic fixtures with stubbed LLM, run as an integration test so it's part of the CI gate · *NFR-9* · **Done when** runs in the `integration-tests` job.
 
@@ -144,7 +149,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [ ] **M6.1** · Order-history import with configurable column mapping; order numbers tokenized · *REC-1* · **Done when** synthetic CSV imports correctly.
 - [ ] **M6.2** · Matcher: multi-invoice orders, credit notes, amount/date tolerance · *REC-2, REC-4* · **Done when** synthetic scenarios tested.
 - [ ] **M6.3** · Reconciliation report API + eval metric (match rate) · *REC-3, §9* · **Done when** endpoint and metric tested.
-- [ ] **M6.4** · Owner runs import + reconciliation on real export · *G4* · **Done when** match rate recorded in eval report.
+- [ ] **M6.4** · [owner] · Owner runs import + reconciliation on real export · *G4* · **Done when** match rate recorded in eval report.
 
 ---
 
@@ -160,11 +165,11 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M8 — Case study and release
 
-- [ ] **M8.1** · Publish ≥ 20 irreversibly redacted samples with expected JSON (owner reviews every file) · *UC6, §10* · **Done when** samples committed after owner sign-off.
-- [ ] **M8.2** · README as a case study: problem, architecture diagram, PII gate, eval results table, trade-offs, what failed · *§10* · **Done when** owner approves README.
-- [ ] **M8.3** · Demo script/GIF of upload → review → reconciliation on redacted samples · *§10* · **Done when** recorded.
-- [ ] **M8.4** · Final eval run against spec §9 targets; record results and any target changes · *§9* · **Done when** results table in README and specs revision history.
-- [ ] **M8.5** · Tag `v1.0.0` (owner pushes) · — · **Done when** tag exists.
+- [ ] **M8.1** · [owner] · Publish ≥ 20 irreversibly redacted samples with expected JSON (owner reviews every file) · *UC6, §10* · **Done when** samples committed after owner sign-off.
+- [ ] **M8.2** · [owner] · README as a case study: problem, architecture diagram, PII gate, eval results table, trade-offs, what failed · *§10* · **Done when** owner approves README.
+- [ ] **M8.3** · [owner] · Demo script/GIF of upload → review → reconciliation on redacted samples · *§10* · **Done when** recorded.
+- [ ] **M8.4** · [owner] · Final eval run against spec §9 targets; record results and any target changes · *§9* · **Done when** results table in README and specs revision history.
+- [ ] **M8.5** · [owner] · Tag `v1.0.0` (owner pushes) · — · **Done when** tag exists.
 
 Phase 2 (Fly.io) is out of scope for this plan; see `deployment.md`.
 
