@@ -21,6 +21,7 @@ COPY reconcile/ reconcile/
 COPY pipeline/ pipeline/
 COPY eval/ eval/
 COPY app/ app/
+COPY perf/ perf/
 
 # Tests and static analysis run in their own CI jobs; this stage only packages.
 RUN ./gradlew --no-daemon :app:bootJar \

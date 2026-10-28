@@ -7,7 +7,7 @@ dependencyResolutionManagement {
     }
 }
 
-// Modules and their allowed dependencies: architecture.md §4. `perf` is added in plan M0.15.
+// Modules and their allowed dependencies: architecture.md §4.
 include(
     "common",
     "storage",
@@ -20,4 +20,5 @@ include(
     "pipeline",
     "app",
     "eval",
+    "perf",
 )

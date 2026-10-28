@@ -128,6 +128,7 @@ WireMock LLM stub (fixed latency 800 ms to imitate a real model). Assertions:
 
 | Scenario | Load | Assertion |
 |----------|------|-----------|
+| Health + authentication (`HealthAuthSimulation`, from M0.15) | 10 users, 60 s, 1 s pause per iteration | p95 < 500 ms, error rate < 1% |
 | Upload + read API | 10 users, 60 s | p95 < 500 ms, error rate < 1% |
 | End-to-end pipeline (digital PDF fixture) | 20 documents | p95 time to decision < 20 s (NFR-3), 0 failures |
 | Review queue/list endpoints | 10 users, 60 s | p95 < 300 ms |

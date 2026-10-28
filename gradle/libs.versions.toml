@@ -11,6 +11,8 @@ pitest = "1.30.1"
 pitest-junit5 = "1.2.3"
 jacoco = "0.8.16"
 archunit = "1.5.1"
+gatling-plugin = "3.16.0"
+jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -40,3 +42,5 @@ spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gra
 spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 spotbugs-gradle-plugin = { module = "com.github.spotbugs.snom:spotbugs-gradle-plugin", version.ref = "spotbugs-plugin" }
 pitest-gradle-plugin = { module = "info.solidsoft.gradle.pitest:gradle-pitest-plugin", version.ref = "pitest-plugin" }
+gatling-gradle-plugin = { module = "io.gatling.gradle:io.gatling.gradle.gradle.plugin", version.ref = "gatling-plugin" }
+jackson2-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson2-buildsrc" }
