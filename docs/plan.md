@@ -96,7 +96,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M2.1** · Regex detectors: phone, email, PIN, PAN, order/invoice numbers · *PII-2(a)* · **Done when** positive/negative tests pass. Done 2026-10-28: `RegexDetector`, `PiiSpan`, `PageText` (architecture §6.3).
 - [ ] **M2.2** · Checksum validators: Verhoeff (Aadhaar), GSTIN mod-36; GSTIN/Aadhaar detectors use them · *PII-2(a), VAL-4* · **Done when** property tests pass.
 - [ ] **M2.3** · Seller-block tagging + `AddressBlockDetector` (anchors, buyer name, street, state extraction) · *§6.3, §6.1* · **Done when** fixtures: buyer name/street detected, seller untouched, state kept.
-- [ ] **M2.4** · `SpanMerger` (overlaps, word expansion, type priority) · *§6.3* · **Done when** overlap cases tested.
+- [x] **M2.4** · `SpanMerger` (overlaps, word expansion, type priority) · *§6.3* · **Done when** overlap cases tested. Done 2026-10-28: `SpanMerger` (architecture §6.3).
 - [ ] **M2.5** · Token generator (HMAC, deterministic) + Tink vault (AEAD) + keys from env · *PII-3, PII-7, ADR-06* · **Done when** same value → same token across docs; vault round-trip tested; no key in config.
 - [ ] **M2.6** · Text redactor → `RedactedContent` (package-private constructor) · *PII-1, §6.4* · **Done when** redacted text of fixtures contains tokens and no fixture PII.
 - [ ] **M2.7** · Image redactor (masked page PNGs) + redacted PDF rebuilt from images · *PII-4, PII-5, ADR-05* · **Done when** the redaction-proof test passes (re-extract + OCR finds no PII).
@@ -204,6 +204,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [x] `TesseractOcr` takes the tessdata folder as a constructor argument. The Text job (M1.10) needs a config key for it (e.g. `invoice-intel.text.tessdata-path`, default `/usr/share/tesseract-ocr/5/tessdata` in the container, Homebrew path for `local`) in architecture §10 and deployment.md · found in M1.8 · resolved in M1.10: `invoice-intel.text.tessdata-path` (`TESSDATA_PATH`)
 - [x] The Text job (M1.10) should store `DocumentClassifier`'s result in `document.document_class` (column from V1, architecture §5.2, §7) · found in M1.9 · resolved in M1.10
 - [ ] `scripts/ci/perf-summary.sh` looks for `js/stats.json`, which Gatling 3.16 reports no longer contain, so the job summary always says "No Gatling stats found"; read `simulation.log` or the HTML report instead (the assertions still gate) · found in M0.15
+- [ ] A merged `PiiSpan.detector` joins every contributing rule name with `+` (e.g. `regex:landline+regex:mobile`), so it can be longer than one rule name; give `pii_span.detector` a `TEXT` (not a short `VARCHAR`) column when its migration is written · found in M2.4
 
 ---
 

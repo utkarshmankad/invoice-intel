@@ -318,6 +318,22 @@ Seller-side values (seller name, seller GSTIN/PAN/address) are excluded by posit
 `SpanMerger` unions overlapping spans, keeps the most specific type, and expands spans to
 whole words. Bias is toward recall (spec §6.3).
 
+Implementation (M2.4): `SpanMerger.merge(layer, spans)` returns, per page in page order,
+sorted non-overlapping spans on whole words; a span on a page not in the layer or ending beyond
+the page text is an `IllegalArgumentException` (page number only in the message). It works on
+words: every word any span touches is covered (a partial word counts as the whole word, a span
+over only a space covers nothing), and takes the most specific type among the spans covering it,
+by `SpanMerger.PRIORITY`: GSTIN > AADHAAR > PAN > ORDER_NUMBER > INVOICE_NUMBER > EMAIL > PHONE >
+PIN_CODE > PERSON > ADDRESS (checksummed identifiers before format-only ones, so a PAN inside a
+GSTIN is the GSTIN; identifiers and contact details before the generic name and address text
+around them). Consecutive covered words join into one span when they have the same type and one
+input span covers both, so the space between words is inside a span only when both sides are.
+Overlap is therefore a union of coverage, not of types: a phone or PIN inside an address block
+stays its own `PHONE`/`PIN_CODE` span and the address text on either side stays `ADDRESS`, so
+each entity gets its own type's token (spec §6.1); spans that only sit next to each other are
+not joined. A merged span's `detector` is the sorted distinct rule names of the same-type input
+spans in it, joined by `+` (e.g. `regex:landline+regex:mobile`), still value-free.
+
 Implementation (M2.1): `PiiDetector`, `PiiSpan`, `PiiType`, `PageText` and `DocumentContext`
 are in `dev.invoiceintel.pii`. `PageText` is a page's words joined by single spaces in
 text-layer order; a `PiiSpan` is `pageNo`, character `[start, end)` in that text, `type` and

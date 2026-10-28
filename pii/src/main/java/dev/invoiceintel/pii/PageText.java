@@ -59,6 +59,21 @@ public final class PageText {
     return result;
   }
 
+  /** Number of words on the page. */
+  int wordCount() {
+    return wordStarts.length;
+  }
+
+  /** Offset in {@link #text()} where word {@code index} starts. */
+  int wordStart(int index) {
+    return wordStarts[index];
+  }
+
+  /** Offset in {@link #text()} just after word {@code index}. */
+  int wordEnd(int index) {
+    return wordStarts[index] + page.words().get(index).text().length();
+  }
+
   @Override
   public String toString() {
     return "PageText[pageNo=" + page.pageNo() + "]";
