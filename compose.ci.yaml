@@ -1,0 +1,57 @@
+# CI override for compose.yaml (docs/ci.md §4–5, architecture.md §14): adds the app container
+# built by the `container` job and a WireMock container standing in for the LLM provider, so
+# CI never calls a real model. Credentials are throwaway values generated per run by
+# scripts/ci/stack-credentials.sh; nothing here is a secret.
+#
+#   eval "$(scripts/ci/stack-credentials.sh)"   # locally; CI writes them to $GITHUB_ENV
+#   docker compose -f compose.yaml -f compose.ci.yaml up -d --wait
+
+services:
+  app:
+    image: invoice-intel:ci
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+      llm-stub:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/invoice_intel
+      DB_USER: ${DB_USER:?run scripts/ci/stack-credentials.sh}
+      DB_PASSWORD: ${DB_PASSWORD:?run scripts/ci/stack-credentials.sh}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run scripts/ci/stack-credentials.sh}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?run scripts/ci/stack-credentials.sh}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?run scripts/ci/stack-credentials.sh}
+    ports:
+      - "127.0.0.1:8080:8080"
+    # The 2 GB budget of §10.1: an out-of-memory regression fails smoke or performance (NFR-10).
+    mem_limit: 2g
+    # The runtime image has no curl or wget; bash's /dev/tcp is enough for one HTTP request.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          && printf 'GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3
+          && grep -q '"status":"UP"' <&3
+      interval: 5s
+      timeout: 3s
+      start_period: 60s
+      retries: 30
+
+  # LLM provider stub: every POST answers after 800 ms, imitating a real model's latency
+  # (docs/ci.md §5). Provider-shaped responses are added with the LlmGateway (plan M3.3).
+  llm-stub:
+    image: wiremock/wiremock:3.13.2
+    command: ["--disable-banner", "--port", "8080"]
+    volumes:
+      - ./scripts/ci/wiremock:/home/wiremock:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8080/__admin/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30

@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPattern": "/.*"
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 800,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "stub": "llm"
+    }
+  }
+}

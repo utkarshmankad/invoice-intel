@@ -96,7 +96,7 @@ CI calls these Gradle tasks and paths. Changing a name means changing `ci.yml` i
 | `spotbugsMain` | SpotBugs + FindSecBugs |
 | `:pii:pitest`, `:validate:pitest` | Mutation tests (nightly) |
 | `:perf:gatlingRun -Dperf.baseUrl=… -Dperf.profile=ci` | Performance simulations |
-| `compose.ci.yaml` | Override that adds the app container (from `invoice-intel:ci`) and a WireMock LLM stub, with generated, throwaway keys |
+| `compose.ci.yaml` | Override that adds the app container (from `invoice-intel:ci`) and a WireMock LLM stub, with throwaway keys generated per run by `scripts/ci/stack-credentials.sh` |
 | `Dockerfile` | Image `invoice-intel:ci` built by the `container` job |
 
 Coverage exclusions (kept small and listed in the build): generated code, `*Application`
@@ -148,7 +148,9 @@ place. Tightening is free; loosening needs a note in the PR description.
 ```bash
 ./gradlew build                      # format, unit, integration, coverage verification, SpotBugs
 scripts/ci/pii-guard.sh              # PII guard
+docker build -t invoice-intel:ci .
+eval "$(scripts/ci/stack-credentials.sh)"   # throwaway DB, S3 and admin credentials
 docker compose -f compose.yaml -f compose.ci.yaml up -d --wait
-APP_ADMIN_PASSWORD=... scripts/ci/smoke-test.sh http://127.0.0.1:8080
+scripts/ci/smoke-test.sh http://127.0.0.1:8080
 ./gradlew :perf:gatlingRun -Dperf.baseUrl=http://127.0.0.1:8080 -Dperf.profile=ci
 ```
