@@ -45,6 +45,16 @@ public final class PageText {
     return text;
   }
 
+  /** Offset in {@link #text()} of the first character of word {@code index} of the page. */
+  public int wordStart(int index) {
+    return wordStarts[index];
+  }
+
+  /** Offset in {@link #text()} just past the last character of word {@code index}. */
+  public int wordEnd(int index) {
+    return wordStarts[index] + page.words().get(index).text().length();
+  }
+
   /** Words that overlap characters {@code [start, end)}, in order. */
   public List<Word> wordsIn(int start, int end) {
     List<Word> words = page.words();
@@ -62,16 +72,6 @@ public final class PageText {
   /** Number of words on the page. */
   int wordCount() {
     return wordStarts.length;
-  }
-
-  /** Offset in {@link #text()} where word {@code index} starts. */
-  int wordStart(int index) {
-    return wordStarts[index];
-  }
-
-  /** Offset in {@link #text()} just after word {@code index}. */
-  int wordEnd(int index) {
-    return wordStarts[index] + page.words().get(index).text().length();
   }
 
   @Override

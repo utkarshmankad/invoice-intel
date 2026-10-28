@@ -315,6 +315,30 @@ public interface PiiDetector {
 Seller-side values (seller name, seller GSTIN/PAN/address) are excluded by position: the
 "Sold By" block and its GSTIN/PAN lines are tagged as seller data before detection runs.
 
+Implementation (M2.3): text-layer order interleaves the lines of side-by-side columns (seller |
+buyer), so both blocks are found from word boxes. `pii.internal.PageLayout` groups a page's words
+into rows (vertical centres within 0.5 word heights) and splits rows into fragments at horizontal
+gaps wider than 2 heights. A block is the anchor's fragment plus the following fragments whose
+left edge is within 3 heights of the anchor's, up to a fragment starting with a known label or a
+vertical gap above 1.8 heights. Labels match case-insensitively, ignoring spaces and punctuation
+between letters ("BILL ING ADDR ESS"), and must end at a word boundary ("PAN" doesn't match
+"Pankaj"). `SellerBlockTagger` tags "Sold By"/"Seller"/"Supplier" blocks, bridging a gap before
+seller ID lines (PAN, GST, GSTIN, VAT, TIN, CIN, FSSAI); `DocumentContext.of(documentId, layer)`
+stores the result as `sellerRanges` (`TextRange`: page and `[start, end)` of `PageText`), and
+`DocumentContext.isSellerData(span)` is true when a span lies wholly inside one range (a span that
+also covers other text stays, for recall). Filtering of seller spans from all detectors happens
+in `SpanMerger` (M2.4) or the PII stage, not in each detector; `AddressBlockDetector` also drops
+its own seller spans. `AddressBlockDetector` anchors: "Billing Address", "Shipping Address",
+"Delivery Address", "Ship To", "Bill To", "Deliver To"; a block ends at section labels (Order,
+Invoice, Credit/Debit Note, Place of Supply/Delivery, State/UT Code, Amount, Total), any anchor or
+an ID label (a buyer GSTIN/PAN is left to the checksum and regex rules). Text after the anchor on
+its line counts as the first line. The first line is `PERSON` (`address-block:name`); lines
+labelled Phone/Mobile/Ph/Tel/Contact or Email/Mail type the value after the label as `PHONE`/
+`EMAIL` instead of `ADDRESS`; other words are `ADDRESS` (`address-block:street`, city included),
+except six-digit or 3+3-digit numbers (`PIN_CODE`, `address-block:pin`) and words wholly covered
+by a state/UT name, which are kept (specs §6.1). The "State/UT Code" line is not PII. Adjacent
+words of one type form one span, so spans never run across another column's text.
+
 `SpanMerger` unions overlapping spans, keeps the most specific type, and expands spans to
 whole words. Bias is toward recall (spec §6.3).
 
