@@ -563,7 +563,9 @@ fake GSTINs). Real invoices never enter the test tree.
 | app | built from `Dockerfile` (optional; usually run from IDE / `bootRun`) | 8080 |
 
 `compose.ci.yaml` overrides this for CI: adds the app container (2 GB memory limit) and a
-WireMock container standing in for the LLM provider, with throwaway keys.
+WireMock container (`llm-stub`, 800 ms latency) standing in for the LLM provider, with
+throwaway keys generated per run by `scripts/ci/stack-credentials.sh`. The app's compose
+healthcheck probes `/actuator/health` with bash `/dev/tcp`, since the runtime image has no curl.
 
 One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.profiles.active=local'`
 (wrapped in a `Makefile` or script). Tesseract is installed on the Mac via Homebrew for

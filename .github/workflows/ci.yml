@@ -310,12 +310,10 @@ jobs:
           name: app-image
       - name: Load image
         run: gunzip -c image.tar.gz | docker load
-      - name: Start stack (app + Postgres + MinIO + stubbed LLM)
-        run: |
-          APP_ADMIN_PASSWORD="$(openssl rand -hex 16)"
-          echo "::add-mask::$APP_ADMIN_PASSWORD"
-          echo "APP_ADMIN_PASSWORD=$APP_ADMIN_PASSWORD" >> "$GITHUB_ENV"
-          APP_ADMIN_PASSWORD="$APP_ADMIN_PASSWORD" docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
+      - name: Generate throwaway credentials
+        run: scripts/ci/stack-credentials.sh
+      - name: Start stack (app + Postgres + SeaweedFS + stubbed LLM)
+        run: docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
       - name: Run smoke checks
         env:
           # Accepted end states narrow as the pipeline grows; plan M4.7 sets AUTO_APPROVED,NEEDS_REVIEW.
@@ -349,13 +347,12 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: app-image
+      - name: Generate throwaway credentials
+        run: scripts/ci/stack-credentials.sh
       - name: Load image and start stack
         run: |
           gunzip -c image.tar.gz | docker load
-          APP_ADMIN_PASSWORD="$(openssl rand -hex 16)"
-          echo "::add-mask::$APP_ADMIN_PASSWORD"
-          echo "APP_ADMIN_PASSWORD=$APP_ADMIN_PASSWORD" >> "$GITHUB_ENV"
-          APP_ADMIN_PASSWORD="$APP_ADMIN_PASSWORD" docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
+          docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
       - name: Run Gatling simulations (assertions fail the job)
         run: ./gradlew :perf:gatlingRun -Dperf.baseUrl=http://127.0.0.1:8080 -Dperf.profile=ci --no-daemon
       - name: Performance summary

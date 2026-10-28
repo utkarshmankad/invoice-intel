@@ -59,12 +59,12 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M0.6** · Profiles `local` / `test`; typed `@ConfigurationProperties` skeleton under `invoice-intel.*`; Flyway V1 with `document` table; Actuator health · *§10, NFR-12* · **Done when** app starts locally and `/actuator/health` is UP.
 - [x] **M0.7** · Spring Security: single admin user from env, form login for UI, HTTP Basic for `/api/**` · *NFR-2, §11* · **Done when** everything except health requires login; anonymous `/api/**` gets 401 (test).
 - [x] **M0.8** · Structured JSON logging with `documentId`/`stage` MDC; PII-mask backstop filter (pattern list stub) · *NFR-6, PII-8* · **Done when** log test shows masked phone/email.
-- [ ] **M0.9** · Multi-stage `Dockerfile` (Temurin + `tesseract-ocr`) · *ADR-07, NFR-10* · **Done when** image builds and starts with `local` profile.
+- [x] **M0.9** · Multi-stage `Dockerfile` (Temurin + `tesseract-ocr`) · *ADR-07, NFR-10* · **Done when** image builds and starts with `local` profile.
 - [x] **M0.10** · GitHub repo, trunk-based ruleset, CI and nightly workflows, Dependabot, PII guard, smoke/coverage/perf scripts · *NFR-9, NFR-13, ci.md* · **Done when** files exist (this task was done before M0.1).
 - [ ] **M0.11** · `Makefile` (or script) for `up`, `run`, `test`, `down` · *NFR-7* · **Done when** `make up run` starts the stack.
 - [x] **M0.12** · Test build contract: `integrationTest` source set and task; JaCoCo `jacocoUnitReport`, `jacocoIntegrationReport`, `jacocoMergedReport` (CSV + HTML) and `jacocoMergedCoverageVerification` (line ≥ `minCoverage`, default 85) · *NFR-13, ci.md §3* · **Done when** `unit-tests`, `integration-tests` and `coverage` jobs pass on a PR.
 - [x] **M0.13** · SpotBugs + FindSecBugs (`spotbugsMain`), PIT plugin configured for `pii` and `validate`, Gradle dependency locking · *NFR-13* · **Done when** `static-analysis` job passes and `./gradlew :pii:pitest` runs.
-- [ ] **M0.14** · `compose.ci.yaml`: app container from `invoice-intel:ci` (2 GB limit), WireMock LLM stub with 800 ms latency, throwaway keys · *NFR-10, NFR-13, ci.md §4* · **Done when** `container` and `smoke` jobs pass.
+- [x] **M0.14** · `compose.ci.yaml`: app container from `invoice-intel:ci` (2 GB limit), WireMock LLM stub with 800 ms latency, throwaway keys · *NFR-10, NFR-13, ci.md §4* · **Done when** `container` and `smoke` jobs pass.
 - [ ] **M0.15** · `perf` module: Gatling Java DSL, `thresholds.conf`, health/auth simulation first (pipeline scenarios added in M4.10) · *NFR-3, NFR-13, ci.md §5* · **Done when** `performance` job runs and its assertions gate the PR.
 - [ ] **M0.16** · First fully green `CI gate` on a PR with all jobs running (none skipped except PR-only ones on `main`) · *NFR-13* · **Done when** green run linked in the Decisions log.
 
@@ -183,11 +183,12 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] google-java-format is pinned to 1.36.1 because 1.37.0 fails under Spotless 8.10.4 on JDK 25; retry the upgrade when Spotless updates (expect Dependabot PRs for it to fail) · found in M0.2
 - [ ] architecture §4.1 lists no module allowed to depend on `ingest`, so the ArchUnit rule forbids all access; M1.3's upload endpoint in `app` (or `pipeline`) will need `ingest` added to §4.1 first · found in M0.4
 - [ ] specs.md NFR-11 and §8 Phase 1 still say "MinIO locally"; local S3 is SeaweedFS since ADR-11 (needs owner approval to edit specs) · found in M0.5
-- [ ] `ci.yml` smoke step name still says "MinIO"; rename when `compose.ci.yaml` lands · found in M0.5
+- [x] `ci.yml` smoke step name still says "MinIO"; rename when `compose.ci.yaml` lands · found in M0.5
 - [ ] Two integration-test contexts (`RANDOM_PORT` web vs. mock) each start a Postgres container; share one context or a singleton container once more ITs exist · found in M0.6
 - [ ] `.env.example` must list `APP_ADMIN_USER` and `APP_ADMIN_PASSWORD` (required since M0.7); the runner can't read `.env*` files, so the owner checks it · found in M0.7
 - [ ] `PiiLogMasker` (app) holds a stub email/phone pattern list; replace it with the M2.1 detector regex set (PIN, PAN, GSTIN, Aadhaar, order numbers) once those exist, without a dependency from `app` internals on `pii` internals · found in M0.8
 - [ ] §4.1 "no module except `pii` may read the vault tables or vault key" has no ArchUnit rule yet; add it with the vault types (M2.5) or the PII-gate rules (M2.11) · found in M0.4
+- [ ] The CI `llm-stub` (WireMock) answers every POST with a placeholder body and the app gets no LLM base URL or key yet; add provider-shaped stub mappings and point the app at `http://llm-stub:8080` with a throwaway key once the `llm.*` config keys exist · found in M0.14
 
 ---
 
@@ -199,5 +200,6 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 | 2026-10-28 | Public GitHub repo, trunk-based development, CI merge gates (coverage ≥ 85%) | M0.10 |
 | 2026-10-28 | Spring Boot 4.1.2 + Java 25 (no fallback needed); versions in architecture ADR-01 | M0.1 |
 | 2026-10-28 | M0.2 ships with M0.3, M0.12 and M0.13 in one PR: CI runs the whole build contract once `settings.gradle.kts` exists (owner decision) | M0.2 |
+| 2026-10-28 | M0.9 ships with M0.14 in one PR: a `Dockerfile` turns on the `smoke` job, which needs `compose.ci.yaml` (owner decision) | M0.9 |
 | 2026-10-28 | Local S3 store is SeaweedFS, not MinIO (MinIO images no longer public); ADR-11 (owner decision) | M0.5 |
 | 2026-10-28 | `/api/**` stateless Basic, CSRF off, no `WWW-Authenticate` challenge; ADR-12 (owner decision) | M0.7 |

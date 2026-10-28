@@ -1,0 +1,19 @@
+# Build context for the Dockerfile. Private data, secrets and local state never enter the
+# image or the build (PII rules, deployment.md §5.1).
+data/
+.env*
+!.env.example
+*.pem
+*.key
+
+.git/
+.github/
+.claude/
+.idea/
+.vscode/
+.DS_Store
+**/build/
+.gradle/
+buildSrc/.gradle/
+eval-reports/
+docs/
