@@ -3,3 +3,9 @@
 spring:
   main:
     banner-mode: off
+
+# Stage jobs only run in tests that enable the server (PipelineIT), so upload tests see the
+# documents they create in RECEIVED.
+jobrunr:
+  background-job-server:
+    enabled: false

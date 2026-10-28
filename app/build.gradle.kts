@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":storage"))
     implementation(project(":ingest"))
+    implementation(project(":pipeline"))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)
@@ -13,6 +14,8 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.flyway)
+    // Stage jobs on Postgres (ADR-04); JobRunr creates and owns its own tables.
+    implementation(libs.jobrunr.spring.boot.starter)
     // @SuppressFBWarnings with a justification, for findings reviewed by the owner (ADR-12).
     compileOnly(libs.spotbugs.annotations)
     runtimeOnly(libs.flyway.database.postgresql)
@@ -22,7 +25,7 @@ dependencies {
     // The ArchUnit module rules (architecture.md §4.1) import the main classes of every
     // module. Test-only, so app's production classpath keeps only its allowed dependencies.
     testImplementation(libs.archunit.junit5)
-    listOf("text", "pii", "extract", "validate", "reconcile", "pipeline", "eval")
+    listOf("text", "pii", "extract", "validate", "reconcile", "eval")
         .forEach { testImplementation(project(":$it")) }
 
     // Postgres via Testcontainers for the `test` profile (architecture.md §10).
@@ -31,6 +34,8 @@ dependencies {
     // SeaweedFS (S3) for upload tests, and the generator for the smoke fixture (M1.3).
     "integrationTestImplementation"(libs.testcontainers)
     "integrationTestImplementation"(testFixtures(project(":common")))
+    // Waits for stage jobs in pipeline tests (testing.md: no sleeps).
+    "integrationTestImplementation"(libs.awaitility)
 }
 
 // `local` reads .env from the repository root (application-local.yaml).

@@ -2,6 +2,7 @@ package dev.invoiceintel.app.api;
 
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.ingest.IngestService;
+import dev.invoiceintel.pipeline.PipelineService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,20 +29,25 @@ import org.springframework.web.server.ResponseStatusException;
 public class DocumentController {
 
   private final IngestService ingest;
+  private final PipelineService pipeline;
 
-  public DocumentController(IngestService ingest) {
+  public DocumentController(IngestService ingest, PipelineService pipeline) {
     this.ingest = ingest;
+    this.pipeline = pipeline;
   }
 
   /**
    * Uploads one or more files as multipart parts named {@code files}. Re-uploading the same bytes
    * returns the existing document with {@code duplicate: true} (ING-2). File names and part content
-   * types are ignored; the type comes from content (ING-3).
+   * types are ignored; the type comes from content (ING-3). New documents start the pipeline;
+   * duplicates don't.
    */
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public List<UploadedDocument> upload(@RequestPart("files") List<MultipartFile> files) {
     var contents = files.stream().map(DocumentController::bytes).toList();
-    return ingest.ingest(contents).stream()
+    var results = ingest.ingest(contents);
+    results.stream().filter(r -> !r.duplicate()).forEach(r -> pipeline.start(r.documentId()));
+    return results.stream()
         .map(r -> new UploadedDocument(r.documentId().value(), r.duplicate()))
         .toList();
   }
