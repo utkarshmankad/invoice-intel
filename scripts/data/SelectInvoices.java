@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +14,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,7 +46,9 @@ public final class SelectInvoices {
   // D3 quotas (plan.md): ≥2 credit notes, ≥3 pre-GST, Amazon Retail and third-party sellers.
   private static final int MIN_CREDIT_NOTES = 2;
   private static final int MIN_PRE_GST = 3;
-  private static final int MIN_PER_SELLER = 3;
+  private static final int MIN_RETAIL = 3;
+  // Third-party sellers bring other seller states and GSTINs; most orders are Amazon Retail.
+  private static final int MIN_THIRD_PARTY = 5;
   private static final int MIN_PER_TAX = 3;
   private static final int MIN_MULTI_PAGE = 2;
 
@@ -67,6 +69,13 @@ public final class SelectInvoices {
   private static final Pattern ORDER_DATE =
       Pattern.compile("order\\s*date\\s*[:\\-]?\\s*" + DATE, Pattern.CASE_INSENSITIVE);
   private static final Pattern ANY_DATE = Pattern.compile("\\b" + DATE + "\\b");
+  // "12 Mar 2021", "12-March-2021", "Mar 12, 2021".
+  private static final Pattern DAY_MONTH_YEAR =
+      Pattern.compile("\\b(\\d{1,2})[ -]([A-Za-z]{3,9})[ ,-]+(\\d{4})\\b");
+  private static final Pattern MONTH_DAY_YEAR =
+      Pattern.compile("\\b([A-Za-z]{3,9}) (\\d{1,2}),? (\\d{4})\\b");
+  private static final List<String> MONTHS =
+      List.of("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec");
   // ISO yyyy-mm-dd, as in some exports and the synthetic fixtures.
   private static final Pattern ISO_DATE = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
 
@@ -78,8 +87,10 @@ public final class SelectInvoices {
           "product name", "product_name",
           "asin", "asin",
           "quantity", "quantity",
+          "original quantity", "quantity",
           "unit price", "unit_price",
-          "total owed", "item_total");
+          "total owed", "item_total",
+          "total amount", "item_total");
 
   enum Kind {
     GST_INVOICE,
@@ -191,20 +202,33 @@ public final class SelectInvoices {
   // ---------------------------------------------------------------------------------------------
   // D2: order history
 
+  /** Export file kinds: physical orders (with shipments) are what invoices reconcile against. */
+  enum OrderFileKind {
+    RETAIL,
+    DIGITAL,
+    OTHER
+  }
+
+  record OrderFile(Path source, List<String> columns, OrderFileKind kind) {}
+
   private static void orderHistory(Path repo, List<Path> csvs, Options options)
       throws IOException {
-    var orderFiles = new ArrayList<Path>();
-    var columns = new LinkedHashSet<String>();
+    var orderFiles = new ArrayList<OrderFile>();
     for (Path csv : csvs) {
       List<String> header = header(csv);
       var lower = header.stream().map(h -> h.toLowerCase(Locale.ROOT)).toList();
       if (lower.contains("order id") && lower.contains("order date")) {
-        orderFiles.add(csv);
-        columns.addAll(header);
+        OrderFileKind kind =
+            lower.contains("digital order item id")
+                ? OrderFileKind.DIGITAL
+                : lower.stream().anyMatch(h -> h.startsWith("shipment") || h.startsWith("carrier"))
+                    ? OrderFileKind.RETAIL
+                    : OrderFileKind.OTHER;
+        orderFiles.add(new OrderFile(csv, header, kind));
       }
     }
-    System.out.printf("%n== D2: order-history CSV files found: %d, distinct columns: %d%n",
-        orderFiles.size(), columns.size());
+    orderFiles.sort(Comparator.comparing(OrderFile::kind));
+    System.out.printf("%n== D2: order-history CSV files found: %d%n", orderFiles.size());
     if (orderFiles.isEmpty()) {
       System.out.println(
           "No CSV with 'Order ID' and 'Order Date' columns. The order history comes from the"
@@ -212,41 +236,67 @@ public final class SelectInvoices {
       return;
     }
     // Column names are not PII (they are Amazon's export schema), so they may be printed.
-    columns.forEach(c -> System.out.println("  column: " + c));
+    for (int i = 0; i < orderFiles.size(); i++) {
+      var file = orderFiles.get(i);
+      System.out.printf(
+          "  order-history-%d.csv: kind=%s, rows=%d, columns=%d%n",
+          i + 1, file.kind, rows(file.source), file.columns.size());
+      for (String column : file.columns) {
+        String target = KNOWN_COLUMNS.get(column.toLowerCase(Locale.ROOT));
+        System.out.println("    " + column + (target == null ? "" : "  -> " + target));
+      }
+    }
     if (!options.apply) {
       return;
     }
     Path target = repo.resolve("data/order-history");
     for (int i = 0; i < orderFiles.size(); i++) {
       Files.copy(
-          orderFiles.get(i),
+          orderFiles.get(i).source,
           target.resolve("order-history-%d.csv".formatted(i + 1)),
           StandardCopyOption.REPLACE_EXISTING);
     }
-    writeMapping(repo.resolve("config/order-history-mapping.yml"), columns, orderFiles.size());
+    writeMapping(repo.resolve("config/order-history-mapping.yml"), orderFiles);
     System.out.println("Copied to data/order-history/ and wrote config/order-history-mapping.yml");
   }
 
-  private static void writeMapping(Path file, Set<String> columns, int fileCount)
-      throws IOException {
+  private static void writeMapping(Path file, List<OrderFile> orderFiles) throws IOException {
     Files.createDirectories(file.getParent());
     var yml = new StringBuilder();
     yml.append("# Columns of the Amazon.in order-history export (plan D2, REC-1). Column names\n")
         .append("# only, never values. `target` is the order_history_item field\n")
-        .append("# (architecture.md §7), or null when the column isn't imported.\n")
-        .append("# Generated by scripts/data/select-invoices.sh from ")
-        .append(fileCount)
-        .append(" file(s).\n")
-        .append("columns:\n");
-    for (String column : columns) {
-      String target = KNOWN_COLUMNS.get(column.toLowerCase(Locale.ROOT));
-      yml.append("  - name: \"")
-          .append(column.replace("\"", "\\\""))
-          .append("\"\n    target: ")
-          .append(target == null ? "null" : target)
-          .append('\n');
+        .append("# (architecture.md §7), or null when the column isn't imported. Names are\n")
+        .append("# kept exactly as in the CSV header, including HTML entities such as &amp;.\n")
+        .append("# RETAIL files hold physical orders, which invoices reconcile against;\n")
+        .append("# DIGITAL files (recharges, e-books) mostly have no GST invoice.\n")
+        .append("# Generated by scripts/data/select-invoices.sh; review the targets.\n")
+        .append("files:\n");
+    for (int i = 0; i < orderFiles.size(); i++) {
+      var orderFile = orderFiles.get(i);
+      yml.append("  - file: order-history-")
+          .append(i + 1)
+          .append(".csv\n    kind: ")
+          .append(orderFile.kind)
+          .append("\n    columns:\n");
+      for (String column : orderFile.columns) {
+        String target = KNOWN_COLUMNS.get(column.toLowerCase(Locale.ROOT));
+        yml.append("      - name: \"")
+            .append(column.replace("\"", "\\\""))
+            .append("\"\n        target: ")
+            .append(target == null ? "null" : target)
+            .append('\n');
+      }
     }
     Files.writeString(file, yml, StandardCharsets.UTF_8);
+  }
+
+  private static long rows(Path csv) throws IOException {
+    // Approximate (quoted multi-line cells count extra); a count, never content.
+    try (Stream<String> lines = Files.lines(csv, StandardCharsets.UTF_8)) {
+      return Math.max(0, lines.count() - 1);
+    } catch (UncheckedIOException e) {
+      return -1;
+    }
   }
 
   private static List<String> header(Path csv) throws IOException {
@@ -328,6 +378,27 @@ public final class SelectInvoices {
         }
       }
     }
+    for (Pattern p : List.of(DAY_MONTH_YEAR, MONTH_DAY_YEAR)) {
+      boolean dayFirst = p == DAY_MONTH_YEAR;
+      Matcher m = p.matcher(text);
+      while (m.find()) {
+        String name = m.group(dayFirst ? 2 : 1).toLowerCase(Locale.ROOT);
+        int month = MONTHS.indexOf(name.substring(0, 3)) + 1;
+        if (month == 0) {
+          continue;
+        }
+        try {
+          var d =
+              LocalDate.of(
+                  Integer.parseInt(m.group(3)), month, Integer.parseInt(m.group(dayFirst ? 1 : 2)));
+          if (d.getYear() >= 2010 && d.getYear() <= LAST_YEAR) {
+            return Optional.of(d);
+          }
+        } catch (DateTimeException ignored) {
+          // Day out of range for the month; try the next match.
+        }
+      }
+    }
     return Optional.empty();
   }
 
@@ -371,7 +442,8 @@ public final class SelectInvoices {
     if (c.kind == Kind.PRE_GST && count(chosen, i -> i.kind == Kind.PRE_GST) < MIN_PRE_GST) {
       gain += 10;
     }
-    if (c.seller != Seller.UNKNOWN && count(chosen, i -> i.seller == c.seller) < MIN_PER_SELLER) {
+    int sellerQuota = c.seller == Seller.THIRD_PARTY ? MIN_THIRD_PARTY : MIN_RETAIL;
+    if (c.seller != Seller.UNKNOWN && count(chosen, i -> i.seller == c.seller) < sellerQuota) {
       gain += 2;
     }
     if (c.tax != Tax.NONE && count(chosen, i -> i.tax == c.tax) < MIN_PER_TAX) {
