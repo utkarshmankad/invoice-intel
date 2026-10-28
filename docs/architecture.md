@@ -418,7 +418,9 @@ the likelier reading). Test fixtures build checksum-valid fake values with `Fake
   once tokens are stored. Tink 1.24.0 (Maven Central, checked 2026-10-28).
 - **Order-history import** passes order numbers through the same tokenizer, so
   reconciliation joins on tokens.
-- Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry.
+- Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry,
+  except order and invoice numbers, which keep their consistent token in both modes (spec §6.1,
+  reconciliation joins on it) and still get no vault entry (owner decision 2026-10-28, M2.6).
 
 #### Redaction outputs
 
