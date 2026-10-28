@@ -43,6 +43,11 @@ All jobs report into **CI gate**, the single required check. A job that is skipp
 its prerequisite doesn't exist yet (no Gradle build before M0.2, no Dockerfile before M0.9,
 no perf module before M0.15) counts as passed.
 
+A pull request that changes only `docs/**` or Markdown (`*.md`) files skips the
+`performance` job (owner decision 2026-10-28): it can't change runtime behaviour, and the
+job takes several minutes. Every other gate still runs, and pushes to `main` always run it.
+The `detect` job decides this (`docs_only` output) by diffing the PR against its base commit.
+
 | Gate | Job | Fails when | Tooling |
 |------|-----|-----------|---------|
 | PR hygiene | `pr-hygiene` | PR title isn't Conventional Commits; branch name doesn't match §1 | action-semantic-pull-request |
