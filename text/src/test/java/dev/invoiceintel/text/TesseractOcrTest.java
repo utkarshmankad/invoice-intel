@@ -39,6 +39,23 @@ class TesseractOcrTest {
     assertThat(wordMatch(expected, page.words())).isGreaterThanOrEqualTo(0.95);
   }
 
+  @ParameterizedTest
+  @EnumSource(InvoiceType.class)
+  void ocr_rasterisedFixture_isClassifiedAsItsType(InvoiceType type) {
+    // TXT-4 on scans: OCR splits and merges words differently from the PDF text layer.
+    byte[] pdf = SyntheticInvoiceGenerator.toPdf(SyntheticInvoiceGenerator.generate(type, 33));
+
+    TextLayer layer = new TextLayer(List.of(ocr.ocr(1, render(pdf))));
+
+    assertThat(new DocumentClassifier().classify(layer).name())
+        .isEqualTo(
+            switch (type) {
+              case GST_TAX_INVOICE -> "TAX_INVOICE";
+              case CREDIT_NOTE -> "CREDIT_NOTE";
+              case PRE_GST_INVOICE -> "PRE_GST_INVOICE";
+            });
+  }
+
   @Test
   void ocr_rasterisedFixture_boxesAndConfidencesAreInRange() {
     byte[] pdf =

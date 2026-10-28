@@ -263,6 +263,18 @@ folder is a constructor argument; a config key for it comes with the Text job (M
 document before PII removal: keyword and pattern scoring ("Tax Invoice", "Credit Note",
 "Bill of Supply", GSTIN present, invoice date vs 2017-07-01). The extraction LLM later
 returns its own `documentClass`; a mismatch lowers confidence.
+Implementation (M1.9): `DocumentClass` (specs §4.1) is an enum in `common`, because `text`,
+`extract` and `validate` all need it and only `common` is visible to all of them (§4.1).
+`DocumentClassifier.classify(TextLayer)` joins all words, upper-cases them and scores each class:
+`TAX_INVOICE` from "Tax Invoice" (3), a GSTIN-shaped token (2), CGST/SGST/UTGST/IGST (1) and a
+document date on or after 2017-07-01 (1), minus 4 for a date before it; `CREDIT_NOTE` from
+"Credit Note" (4) and "Original Invoice" (1); `BILL_OF_SUPPLY` from "Bill of Supply" (4);
+`PRE_GST_INVOICE`, only when "Invoice" appears, from a date before 2017-07-01 (3), VAT/CST/TIN
+without GST markers (2) and "Retail Invoice" (1). The document date is the one labelled
+"Invoice Date" (`yyyy-MM-dd`, `dd.MM.yyyy`, `dd/MM/yyyy`, `dd-MM-yyyy`, `dd Mon yyyy`), else the
+latest date in the text. The highest score of at least 3 wins (ties: credit note, bill of supply,
+pre-GST, tax invoice); otherwise `OTHER`. Phrases match with any spacing so OCR'd text classifies
+the same; tests cover every fixture type through both the PDF text layer and OCR.
 
 ### 6.3 PII (`pii`)
 
