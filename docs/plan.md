@@ -72,9 +72,9 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M1 — Ingest and text
 
-- [ ] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md* · **Done when** generator produces 3 fixture types used by tests, plus the smoke fixture at `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf`.
+- [x] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md, §13, ADR-14* · **Done when** generator produces 3 fixture types used by tests. The smoke fixture is committed in M1.3 with the upload endpoint (owner decision 2026-10-28: committing it earlier turns on the smoke upload checks before the endpoint exists).
 - [ ] **M1.2** · `storage`: `BlobStore` interface + S3 implementation; Testcontainers SeaweedFS test · *NFR-11, §9.1* · **Done when** put/get/delete tested.
-- [ ] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type.
+- [ ] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type, and the smoke fixture `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf` (written with `SyntheticInvoiceGenerator.writePdf`) is committed so the smoke upload checks run.
 - [ ] **M1.4** · `pipeline`: JobRunr setup on Postgres, document state machine, stage-run table, reprocess-from-stage · *NFR-5, §5.1* · **Done when** a no-op stage chain advances a document RECEIVED → TEXT_READY and can be re-run.
 - [ ] **M1.5** · `text`: PDF text layer with word boxes (PDFBox) and has-text-layer check · *TXT-1, TXT-2* · **Done when** fixture PDF yields expected words + boxes.
 - [ ] **M1.6** · `text`: page rendering at 300 DPI, one page at a time; page images to raw bucket · *TXT-2, §10.1* · **Done when** page PNGs stored and referenced in `blob_ref`.

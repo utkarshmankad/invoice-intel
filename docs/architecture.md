@@ -549,6 +549,16 @@ are defined in `docs/ci.md`.
 Test fixtures use **synthetic** invoices generated from a template (fake names, valid-format
 fake GSTINs). Real invoices never enter the test tree.
 
+The generator lives in `common`'s test fixtures (`java-test-fixtures` plugin, ADR-14):
+`common/src/testFixtures/java/dev/invoiceintel/common/fixtures/SyntheticInvoiceGenerator`.
+`generate(InvoiceType, seed)` returns the ground truth (`SyntheticInvoice`: numbers, dates,
+seller, buyer, line items, totals, amount in words, `piiValues()`) and `toPdf` renders it as a
+one-page digital PDF with PDFBox; the same type and seed always give the same bytes. Types:
+GST tax invoice, credit note, pre-GST (VAT/CST) invoice. Other modules use it with
+`testImplementation(testFixtures(project(":common")))`; it never reaches main code, so the
+§4.1 rules are unaffected. Identifier-shaped values (GSTIN, PAN, mobile) are computed at run
+time, never written as literals, so the gitleaks PII rules stay quiet on source files.
+
 ---
 
 ## 14. Local development (NFR-7)
@@ -626,6 +636,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-11 | SeaweedFS (`chrislusf/seaweedfs`, S3 gateway) as the local S3-compatible store (owner decision 2026-10-28, M0.5) | MinIO; Garage; RustFS; Chainguard MinIO; MinIO built from source | MinIO stopped publishing public images in late 2025 (`minio/minio` not pullable, checked 2026-10-28). SeaweedFS is Apache-2.0, has pinned tags, and the app only uses the AWS SDK S3 client (NFR-11), so no code depends on the choice. |
 | ADR-12 | `/api/**`: stateless HTTP Basic with CSRF off, 401 without a `WWW-Authenticate` challenge; the FindSecBugs `SPRING_CSRF_PROTECTION_DISABLED` finding is suppressed on that one method with this ADR as justification (owner decision 2026-10-28, M0.7) | CSRF tokens on `/api/**` too; CSRF off with the default Basic challenge | No session cookie means no CSRF via cookies. Without the challenge, browsers never cache Basic credentials, which closes the other route. CSRF tokens would force the CLI, smoke script and Gatling to fetch a token and a session first. |
 | ADR-13 | Structured logs use Spring Boot's built-in ECS JSON formatter; the PII backstop is a `StructuredLoggingJsonMembersCustomizer` value processor, not a Logback filter (M0.8) | Logback `Filter` (can only accept or drop events, not rewrite them); `logstash-logback-encoder` with a masking decorator | Built into Boot, no new dependency, and the value processor reaches every string field including MDC and stack traces. Masking applies only to the JSON output, so plain-text console logging must not be re-enabled. |
+| ADR-14 | Synthetic invoice generator in `common` test fixtures (`java-test-fixtures`), PDFBox as a `testFixturesImplementation` dependency (owner decision 2026-10-28, M1.1) | A separate test-only `fixtures` module | Shared by every module's tests without a new module or any main-code dependency, so ArchUnit rules and the §4 module list stay unchanged. |
 
 ---
 
