@@ -27,6 +27,8 @@ dependencies {
     implementation(libs.djl.tokenizers)
     // Reads the model's config.json (id2label).
     implementation(libs.jackson.databind)
+    // The redacted PDF is rebuilt from masked page images (PII-4, ADR-05).
+    implementation(libs.pdfbox)
 
     testImplementation(testFixtures(project(":common")))
 }
@@ -152,6 +154,15 @@ fun Test.useNerModels(names: List<String>) {
 
 tasks.test {
     useNerModels(listOf(chosenNerModel))
+}
+
+// The redaction-proof test OCRs the redacted PDF (PII-4). JNA doesn't search Homebrew's library
+// folder; CI (Linux) finds libtesseract on the default path.
+val homebrewLib = file("/opt/homebrew/lib")
+if (homebrewLib.isDirectory) {
+    tasks.withType<Test>().configureEach {
+        systemProperty("jna.library.path", homebrewLib.absolutePath)
+    }
 }
 
 tasks.register<Test>("nerBenchmark") {
