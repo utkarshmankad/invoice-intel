@@ -31,7 +31,9 @@ Full branching and CI rules: `docs/ci.md`.
 
 The scheduled milestone runner (`docs/runner.md`) is the owner's standing request to push
 its own task branches, open PRs labelled `auto-runner`, enable auto-merge on them, and push
-fixes to them. That authorization covers only those actions on runner task branches.
+fixes to them. When a rebase can't be pushed without force-pushing, it may also push a
+replacement branch (`<branch>-r<k>`), open its PR and close the PR it supersedes
+(`docs/runner.md` §4.1). That authorization covers only those actions on runner task branches.
 
 ## Never without the owner asking (runner included, except as above)
 
