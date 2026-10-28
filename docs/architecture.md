@@ -567,8 +567,10 @@ WireMock container (`llm-stub`, 800 ms latency) standing in for the LLM provider
 throwaway keys generated per run by `scripts/ci/stack-credentials.sh`. The app's compose
 healthcheck probes `/actuator/health` with bash `/dev/tcp`, since the runtime image has no curl.
 
-One command: `docker compose up -d && ./gradlew :app:bootRun --args='--spring.profiles.active=local'`
-(wrapped in a `Makefile` or script). Tesseract is installed on the Mac via Homebrew for
+One command: `make up run` (`docker compose up -d --wait`, then
+`./gradlew :app:bootRun --args='--spring.profiles.active=local'`). The `Makefile` also has
+`test` (`./gradlew build`) and `down`, and sets the colima Testcontainers variables below when
+colima is in use. Tesseract is installed on the Mac via Homebrew for
 `bootRun`, and inside the image via `apt`.
 
 Testcontainers needs to find the Docker socket. With colima, set
