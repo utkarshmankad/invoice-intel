@@ -81,6 +81,16 @@ class TokenGeneratorTest {
         .isEqualTo(asPhone.substring("PHONE_".length()));
   }
 
+  @Test
+  void token_panAndAadhaar_useIdPrefixPerSpec() throws Exception {
+    TokenGenerator tokens = TestKeysets.tokens(TestKeysets.newTokenKeyset());
+
+    assertThat(tokens.token(PiiType.PAN, "x1")).startsWith("ID_");
+    assertThat(tokens.token(PiiType.AADHAAR, "x1")).startsWith("ID_");
+    assertThat(tokens.token(PiiType.GSTIN, "x1")).startsWith("GSTIN_");
+    assertThat(TokenGenerator.prefix(PiiType.ORDER_NUMBER)).isEqualTo("ORDER_NUMBER");
+  }
+
   @ParameterizedTest
   @CsvSource(
       delimiter = '|',

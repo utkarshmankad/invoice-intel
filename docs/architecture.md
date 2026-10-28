@@ -399,6 +399,7 @@ the likelier reading). Test fixtures build checksum-valid fake values with `Fake
 #### Tokens and vault (PII-3, PII-7)
 
 - **Token generation:** `token = TYPE + "_" + base32(HMAC-SHA256(tokenKey, normalized(value)))[0..8]`.
+  `TYPE` is the `PiiType` name, except `ID` for PAN and Aadhaar (spec §6.1; owner decision 2026-10-28).
   The same real value always gives the same token across all documents, which keeps order
   numbers joinable for reconciliation without storing them in clear text.
   `TokenGenerator` (M2.5): `normalized` collapses whitespace runs to one space, trims and

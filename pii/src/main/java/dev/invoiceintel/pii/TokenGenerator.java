@@ -7,9 +7,10 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Deterministic pseudonyms for PII values: {@code TYPE + "_" + base32(HMAC-SHA256(tokenKey,
- * normalized(value)))[0..8]} (PII-3, ADR-06, architecture.md §6.3). The same value gives the same
- * token in every document, so order numbers stay joinable for reconciliation.
+ * Deterministic pseudonyms for PII values: {@code PREFIX + "_" + base32(HMAC-SHA256(tokenKey,
+ * normalized(value)))[0..8]} (PII-3, ADR-06, architecture.md §6.3). The prefix is the type name,
+ * except {@code ID} for PAN and Aadhaar (spec §6.1). The same value gives the same token in every
+ * document, so order numbers stay joinable for reconciliation.
  *
  * <p>Build it with {@link PiiKeys#tokenGenerator}, which only accepts an HMAC-SHA256 keyset without
  * an output prefix.
@@ -38,7 +39,15 @@ public final class TokenGenerator {
       // The message names neither the value nor the key (PII-7, PII-8).
       throw new IllegalStateException("token MAC failed", e);
     }
-    return type.name() + "_" + base32Prefix(tag);
+    return prefix(type) + "_" + base32Prefix(tag);
+  }
+
+  /** Spec §6.1: buyer PAN and Aadhaar share the {@code ID} prefix; other types use their name. */
+  static String prefix(PiiType type) {
+    return switch (type) {
+      case PAN, AADHAAR -> "ID";
+      default -> type.name();
+    };
   }
 
   /**
