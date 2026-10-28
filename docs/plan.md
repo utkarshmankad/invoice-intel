@@ -41,9 +41,9 @@ Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
 Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongside M0–M4.
 
 - [x] **D1** · [owner] · Request the Amazon.in data export ("Request Your Data") · *R4, R5* · **Done when** request submitted (export can take days).
-- [ ] **D2** · [owner] · Save the order-history CSV to `data/order-history/`; write down its column names (not values) in `config/order-history-mapping.yml` · *REC-1, R4* · **Done when** mapping file lists every column.
-- [ ] **D3** · [owner] · Download ~20 invoices spread over 2013–2026, Amazon Retail + third-party, at least 2 credit notes, at least 3 pre-GST · *§4.3, R1* · **Done when** files are in `data/raw/`.
-- [ ] **D4** · [owner] · Add 3–5 phone photos or printed-and-scanned invoices · *R2* · **Done when** files are in `data/raw/`.
+- [x] **D2** · [owner] · Save the order-history CSV to `data/order-history/`; write down its column names (not values) in `config/order-history-mapping.yml` · *REC-1, R4* · **Done when** mapping file lists every column. Done 2026-10-28 with `scripts/data/select-invoices.sh`: 2 CSVs (retail and digital orders), 97 columns. The committed mapping uses the script's first, combined format; re-run it to get the per-file format and review the `target`s.
+- [x] **D3** · [owner] · Download ~20 invoices spread over 2013–2026, Amazon Retail + third-party, at least 2 credit notes, at least 3 pre-GST · *§4.3, R1* · **Done when** files are in `data/raw/`. Done 2026-10-28 (owner decision) with `scripts/data/select-invoices.sh`: 20 invoices, 3 credit notes, 3 third-party sellers, years 2016–2026. Gaps accepted for now: only 1 pre-GST invoice (needs 3) and none from 2013–2015, because the export has nothing older than 2016.
+- [x] **D4** · [owner] · Add 3–5 phone photos or printed-and-scanned invoices · *R2* · **Done when** files are in `data/raw/`. Ticked 2026-10-28 (owner decision): the export had 1 scan/photo; the owner adds the remaining 2–4 photos by hand.
 - [ ] **D5** · [owner] · Hand-label the first 20 invoices (schema fields + PII spans) using the label format from M5.1 · *EVAL-3* · **Done when** 20 label files in `data/labels/`.
 - [ ] **D6** · [owner] · Grow the corpus to 150–300 invoices · *§4.3* · **Done when** before M5.6.
 
