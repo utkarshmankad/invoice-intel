@@ -40,7 +40,7 @@ Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
 
 Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongside M0–M4.
 
-- [ ] **D1** · [owner] · Request the Amazon.in data export ("Request Your Data") · *R4, R5* · **Done when** request submitted (export can take days).
+- [x] **D1** · [owner] · Request the Amazon.in data export ("Request Your Data") · *R4, R5* · **Done when** request submitted (export can take days).
 - [ ] **D2** · [owner] · Save the order-history CSV to `data/order-history/`; write down its column names (not values) in `config/order-history-mapping.yml` · *REC-1, R4* · **Done when** mapping file lists every column.
 - [ ] **D3** · [owner] · Download ~20 invoices spread over 2013–2026, Amazon Retail + third-party, at least 2 credit notes, at least 3 pre-GST · *§4.3, R1* · **Done when** files are in `data/raw/`.
 - [ ] **D4** · [owner] · Add 3–5 phone photos or printed-and-scanned invoices · *R2* · **Done when** files are in `data/raw/`.
