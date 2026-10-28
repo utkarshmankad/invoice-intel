@@ -159,6 +159,20 @@ class DocumentUploadIT {
   }
 
   @Test
+  void list_withAndWithoutStatus_returnsMatchingDocuments() throws Exception {
+    UUID id = firstId(upload(List.of(new Part("a.pdf", "application/pdf", invoicePdf(7)))));
+
+    JsonNode all = json.readTree(get("/api/documents").body());
+    JsonNode received = json.readTree(get("/api/documents?status=RECEIVED").body());
+    JsonNode failed = json.readTree(get("/api/documents?status=FAILED").body());
+
+    assertThat(all).hasSize(1);
+    assertThat(all.get(0).get("id").asString()).isEqualTo(id.toString());
+    assertThat(received).hasSize(1);
+    assertThat(failed).isEmpty();
+  }
+
+  @Test
   void get_unknownDocument_is404ProblemDetail() throws Exception {
     var response = get("/api/documents/" + UUID.randomUUID());
 

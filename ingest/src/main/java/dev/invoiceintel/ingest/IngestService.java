@@ -23,6 +23,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  */
 public final class IngestService {
 
+  /** Page size of the document list until the API gets paging (UC1). */
+  public static final int LIST_LIMIT = 100;
+
   private static final Logger log = LoggerFactory.getLogger(IngestService.class);
 
   private final BlobStore blobStore;
@@ -61,6 +64,16 @@ public final class IngestService {
   /** Status of the document, or empty if there is none with {@code id}. */
   public Optional<DocumentStatus> find(DocumentId id) {
     return documents.findStatus(id).map(status -> new DocumentStatus(id, status));
+  }
+
+  /** Newest documents first, at most {@value #LIST_LIMIT}, across all statuses. */
+  public List<DocumentStatus> list() {
+    return documents.list(null, LIST_LIMIT);
+  }
+
+  /** Newest documents in {@code status} first, at most {@value #LIST_LIMIT}. */
+  public List<DocumentStatus> listByStatus(String status) {
+    return documents.list(Objects.requireNonNull(status, "status"), LIST_LIMIT);
   }
 
   private IngestResult ingestOne(byte[] content, FileType type) {

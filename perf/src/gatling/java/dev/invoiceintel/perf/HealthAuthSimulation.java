@@ -23,7 +23,7 @@ public final class HealthAuthSimulation extends Simulation {
   private final HttpProtocolBuilder protocol =
       http.baseUrl(CONFIG.baseUrl()).acceptHeader("application/json");
 
-  // Until the documents API exists (M1.3), an authenticated request ends in 404 after security.
+  // The document list exists since M1.3; 404 would mean the route went missing.
   private final ScenarioBuilder healthAndAuth =
       scenario("Health and authentication")
           .forever()
@@ -34,7 +34,7 @@ public final class HealthAuthSimulation extends Simulation {
                       http("api authenticated")
                           .get("/api/documents")
                           .basicAuth(CONFIG.adminUser(), CONFIG.adminPassword())
-                          .check(status().in(200, 404)))
+                          .check(status().is(200)))
                   .pause(Duration.ofSeconds(1)));
 
   {

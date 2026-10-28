@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +43,15 @@ public class DocumentController {
     var contents = files.stream().map(DocumentController::bytes).toList();
     return ingest.ingest(contents).stream()
         .map(r -> new UploadedDocument(r.documentId().value(), r.duplicate()))
+        .toList();
+  }
+
+  /** The newest documents, optionally only those in {@code status} (UC1, architecture.md §8). */
+  @GetMapping
+  public List<DocumentView> list(@RequestParam(required = false) String status) {
+    var documents = status == null ? ingest.list() : ingest.listByStatus(status);
+    return documents.stream()
+        .map(d -> new DocumentView(d.documentId().value(), d.status()))
         .toList();
   }
 

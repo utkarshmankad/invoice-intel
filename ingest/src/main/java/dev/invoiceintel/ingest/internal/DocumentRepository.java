@@ -1,7 +1,9 @@
 package dev.invoiceintel.ingest.internal;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.ingest.DocumentStatus;
 import dev.invoiceintel.storage.BlobKey;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +31,23 @@ public final class DocumentRepository {
         .param(id.value())
         .query(String.class)
         .optional();
+  }
+
+  /** Newest first, at most {@code limit}; {@code status} null means any status. */
+  public List<DocumentStatus> list(String status, int limit) {
+    return jdbc.sql(
+            """
+            SELECT id, status FROM document
+            WHERE CAST(? AS VARCHAR) IS NULL OR status = ?
+            ORDER BY created_at DESC, id
+            LIMIT ?
+            """)
+        .params(status, status, limit)
+        .query(
+            (rs, row) ->
+                new DocumentStatus(
+                    new DocumentId(rs.getObject("id", UUID.class)), rs.getString("status")))
+        .list();
   }
 
   /**
