@@ -65,7 +65,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M0.12** · Test build contract: `integrationTest` source set and task; JaCoCo `jacocoUnitReport`, `jacocoIntegrationReport`, `jacocoMergedReport` (CSV + HTML) and `jacocoMergedCoverageVerification` (line ≥ `minCoverage`, default 85) · *NFR-13, ci.md §3* · **Done when** `unit-tests`, `integration-tests` and `coverage` jobs pass on a PR.
 - [x] **M0.13** · SpotBugs + FindSecBugs (`spotbugsMain`), PIT plugin configured for `pii` and `validate`, Gradle dependency locking · *NFR-13* · **Done when** `static-analysis` job passes and `./gradlew :pii:pitest` runs.
 - [x] **M0.14** · `compose.ci.yaml`: app container from `invoice-intel:ci` (2 GB limit), WireMock LLM stub with 800 ms latency, throwaway keys · *NFR-10, NFR-13, ci.md §4* · **Done when** `container` and `smoke` jobs pass.
-- [ ] **M0.15** · `perf` module: Gatling Java DSL, `thresholds.conf`, health/auth simulation first (pipeline scenarios added in M4.10) · *NFR-3, NFR-13, ci.md §5* · **Done when** `performance` job runs and its assertions gate the PR.
+- [x] **M0.15** · `perf` module: Gatling Java DSL, `thresholds.conf`, health/auth simulation first (pipeline scenarios added in M4.10) · *NFR-3, NFR-13, ci.md §5* · **Done when** `performance` job runs and its assertions gate the PR.
 - [ ] **M0.16** · First fully green `CI gate` on a PR with all jobs running (none skipped except PR-only ones on `main`) · *NFR-13* · **Done when** green run linked in the Decisions log.
 
 ---
@@ -189,6 +189,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] `PiiLogMasker` (app) holds a stub email/phone pattern list; replace it with the M2.1 detector regex set (PIN, PAN, GSTIN, Aadhaar, order numbers) once those exist, without a dependency from `app` internals on `pii` internals · found in M0.8
 - [ ] §4.1 "no module except `pii` may read the vault tables or vault key" has no ArchUnit rule yet; add it with the vault types (M2.5) or the PII-gate rules (M2.11) · found in M0.4
 - [ ] The CI `llm-stub` (WireMock) answers every POST with a placeholder body and the app gets no LLM base URL or key yet; add provider-shaped stub mappings and point the app at `http://llm-stub:8080` with a throwaway key once the `llm.*` config keys exist · found in M0.14
+- [ ] `scripts/ci/perf-summary.sh` looks for `js/stats.json`, which Gatling 3.16 reports no longer contain, so the job summary always says "No Gatling stats found"; read `simulation.log` or the HTML report instead (the assertions still gate) · found in M0.15
 
 ---
 
