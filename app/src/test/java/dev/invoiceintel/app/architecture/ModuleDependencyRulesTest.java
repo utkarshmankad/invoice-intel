@@ -52,9 +52,8 @@ class ModuleDependencyRulesTest {
           .definedBy(BASE + "eval..")
           .whereLayer("storage")
           .mayOnlyBeAccessedByLayers("ingest", "text", "pii", "pipeline", "app")
-          // §4.1 lists no module that may use ingest yet.
           .whereLayer("ingest")
-          .mayNotBeAccessedByAnyLayer()
+          .mayOnlyBeAccessedByLayers("app")
           .whereLayer("text")
           .mayOnlyBeAccessedByLayers("pii", "pipeline")
           .whereLayer("pii")

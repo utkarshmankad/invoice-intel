@@ -13,6 +13,7 @@ jacoco = "0.8.16"
 archunit = "1.5.1"
 pdfbox = "3.0.8"
 aws-sdk = "2.56.0" # checked 2026-10-28
+tika = "4.1.0" # checked 2026-10-28
 gatling-plugin = "3.16.0"
 jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
@@ -38,6 +39,8 @@ assertj-core = { module = "org.assertj:assertj-core" }
 aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "aws-sdk" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
 testcontainers = { module = "org.testcontainers:testcontainers" }
+spring-jdbc = { module = "org.springframework:spring-jdbc" }
+tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 spotbugs-annotations = { module = "com.github.spotbugs:spotbugs-annotations", version.ref = "spotbugs" }

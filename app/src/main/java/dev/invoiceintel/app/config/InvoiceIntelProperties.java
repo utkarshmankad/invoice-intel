@@ -33,9 +33,28 @@ public record InvoiceIntelProperties(
     }
   }
 
-  /** Object storage (architecture.md §9.1). Access keys stay in the environment only. */
+  /**
+   * Object storage (architecture.md §9.1). The access keys come from the environment only (PII-7,
+   * NFR-12) and are masked in {@link #toString()}.
+   */
   public record Storage(
-      @NotNull URI endpoint, @NotBlank String bucketRaw, @NotBlank String bucketRedacted) {}
+      @NotNull URI endpoint,
+      @NotBlank String bucketRaw,
+      @NotBlank String bucketRedacted,
+      @NotBlank String accessKey,
+      @NotBlank String secretKey) {
+
+    @Override
+    public String toString() {
+      return "Storage[endpoint="
+          + endpoint
+          + ", bucketRaw="
+          + bucketRaw
+          + ", bucketRedacted="
+          + bucketRedacted
+          + ", accessKey=****, secretKey=****]";
+    }
+  }
 
   /**
    * Text stage (TXT-2). {@code maxConcurrentPageJobs} caps concurrent render/OCR work to keep the

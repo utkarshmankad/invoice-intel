@@ -10,6 +10,11 @@ spring:
     password: ${DB_PASSWORD:}
   flyway:
     locations: classpath:db/migration
+  # Phone photos of invoices exceed Spring's 1 MB default (ING-1); larger requests get 413.
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 100MB
 
 invoice-intel:
   # Single admin user (NFR-2, architecture.md §11). No default password: start-up fails
@@ -21,6 +26,9 @@ invoice-intel:
     endpoint: ${S3_ENDPOINT:http://127.0.0.1:9000}
     bucket-raw: ${S3_BUCKET_RAW:raw}
     bucket-redacted: ${S3_BUCKET_REDACTED:redacted}
+    # No defaults: start-up fails until both are set.
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
   text:
     dpi: 300
     ocr-languages: [eng]

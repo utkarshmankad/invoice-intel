@@ -74,7 +74,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 - [x] **M1.1** · Synthetic invoice generator (test fixtures): GST tax invoice, credit note, pre-GST invoice; fake names/addresses, valid-format fake GSTIN/PAN; outputs digital PDF · *testing.md, §13, ADR-14* · **Done when** generator produces 3 fixture types used by tests. The smoke fixture is committed in M1.3 with the upload endpoint (owner decision 2026-10-28: committing it earlier turns on the smoke upload checks before the endpoint exists).
 - [x] **M1.2** · `storage`: `BlobStore` interface + S3 implementation; Testcontainers SeaweedFS test · *NFR-11, §9.1* · **Done when** put/get/delete tested.
-- [ ] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type, and the smoke fixture `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf` (written with `SyntheticInvoiceGenerator.writePdf`) is committed so the smoke upload checks run.
+- [x] **M1.3** · `ingest`: upload endpoint, SHA-256 dedupe, Tika MIME check, raw blob write, `document` row · *ING-1..4, §6.1* · **Done when** integration test covers new upload, duplicate, and rejected type, and the smoke fixture `app/src/integrationTest/resources/fixtures/smoke/gst-tax-invoice.pdf` (written with `SyntheticInvoiceGenerator.writePdf`) is committed so the smoke upload checks run. The document stays in `RECEIVED`; M1.4 adds the enqueue hook and M1.10 the Text job (owner decision 2026-10-28).
 - [ ] **M1.4** · `pipeline`: JobRunr setup on Postgres, document state machine, stage-run table, reprocess-from-stage · *NFR-5, §5.1* · **Done when** a no-op stage chain advances a document RECEIVED → TEXT_READY and can be re-run.
 - [ ] **M1.5** · `text`: PDF text layer with word boxes (PDFBox) and has-text-layer check · *TXT-1, TXT-2* · **Done when** fixture PDF yields expected words + boxes.
 - [ ] **M1.6** · `text`: page rendering at 300 DPI, one page at a time; page images to raw bucket · *TXT-2, §10.1* · **Done when** page PNGs stored and referenced in `blob_ref`.
@@ -181,7 +181,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 `- [ ] short description · found in <task ID>`._
 
 - [ ] google-java-format is pinned to 1.36.1 because 1.37.0 fails under Spotless 8.10.4 on JDK 25; retry the upgrade when Spotless updates (expect Dependabot PRs for it to fail) · found in M0.2
-- [ ] architecture §4.1 lists no module allowed to depend on `ingest`, so the ArchUnit rule forbids all access; M1.3's upload endpoint in `app` (or `pipeline`) will need `ingest` added to §4.1 first · found in M0.4
+- [x] architecture §4.1 lists no module allowed to depend on `ingest`, so the ArchUnit rule forbids all access; M1.3's upload endpoint in `app` (or `pipeline`) will need `ingest` added to §4.1 first · found in M0.4 · resolved in M1.3: `ingest ◄── app` (owner decision 2026-10-28)
 - [ ] specs.md NFR-11 and §8 Phase 1 still say "MinIO locally"; local S3 is SeaweedFS since ADR-11 (needs owner approval to edit specs) · found in M0.5
 - [x] `ci.yml` smoke step name still says "MinIO"; rename when `compose.ci.yaml` lands · found in M0.5
 - [ ] Two integration-test contexts (`RANDOM_PORT` web vs. mock) each start a Postgres container; share one context or a singleton container once more ITs exist · found in M0.6
