@@ -34,8 +34,8 @@ RUN apt-get update \
         tesseract-ocr=5.5.0-1build1 \
         tesseract-ocr-eng=1:4.1.0-2build1 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system app \
-    && useradd --system --gid app --no-create-home app
+    && groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --no-create-home app
 
 WORKDIR /app
 COPY --from=build /workspace/extracted/dependencies/ ./
@@ -43,7 +43,8 @@ COPY --from=build /workspace/extracted/spring-boot-loader/ ./
 COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
 COPY --from=build /workspace/extracted/application/ ./
 
-USER app
+# Numeric so the runtime can check it is non-root without resolving names (hadolint DL3066).
+USER 10001:10001
 EXPOSE 8080
 
 # Memory budget for the 2 GB container (§10.1, NFR-10); override via JAVA_TOOL_OPTIONS.
