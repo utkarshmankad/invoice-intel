@@ -94,7 +94,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 ## M2 — PII
 
 - [x] **M2.1** · Regex detectors: phone, email, PIN, PAN, order/invoice numbers · *PII-2(a)* · **Done when** positive/negative tests pass. Done 2026-10-28: `RegexDetector`, `PiiSpan`, `PageText` (architecture §6.3).
-- [ ] **M2.2** · Checksum validators: Verhoeff (Aadhaar), GSTIN mod-36; GSTIN/Aadhaar detectors use them · *PII-2(a), VAL-4* · **Done when** property tests pass.
+- [x] **M2.2** · Checksum validators: Verhoeff (Aadhaar), GSTIN mod-36; GSTIN/Aadhaar detectors use them · *PII-2(a), VAL-4* · **Done when** property tests pass. Done 2026-10-28: `Verhoeff`, `GstinChecksum` (common), `ChecksumDetector` (pii) (architecture §6.3).
 - [ ] **M2.3** · Seller-block tagging + `AddressBlockDetector` (anchors, buyer name, street, state extraction) · *§6.3, §6.1* · **Done when** fixtures: buyer name/street detected, seller untouched, state kept.
 - [x] **M2.4** · `SpanMerger` (overlaps, word expansion, type priority) · *§6.3* · **Done when** overlap cases tested. Done 2026-10-28: `SpanMerger` (architecture §6.3).
 - [ ] **M2.5** · Token generator (HMAC, deterministic) + Tink vault (AEAD) + keys from env · *PII-3, PII-7, ADR-06* · **Done when** same value → same token across docs; vault round-trip tested; no key in config.
@@ -198,6 +198,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] Until M1.10 the placeholder Text stage moves uploads to `TEXT_READY` without a text layer; after M1.10, reprocess those documents from `TEXT` (or clear the local database) · found in M1.4
 - [ ] The JobRunr dashboard is off: it serves on its own port (8000) without the app's login. Decide whether to enable it for `local` only, bound to `127.0.0.1` with its own credentials from `.env` · found in M1.4
 - [ ] Stage job concurrency uses JobRunr's default worker count; size it from `invoice-intel.pipeline.*` (architecture §5.2, §10.1) when render/OCR stages arrive (M1.6–M1.8) · found in M1.4
+- [ ] `ChecksumDetector` reports Aadhaar numbers only when Verhoeff passes; an OCR-damaged Aadhaar after an "Aadhaar"/"UID" label, masked Aadhaar (`XXXX XXXX 1234`), the 16-digit VID and GSTINs/Aadhaars split across OCR words are not found. Check on the eval set (M5) whether a label rule like `regex:gstin-label` is needed · found in M2.2
 - [x] Image uploads (JPEG/PNG) have no page image yet: `PageImageStore` renders PDFs only. The Text job (M1.10) should store the image itself as page 1 (normalised to PNG, "images used as-is", §6.2) · found in M1.6 · resolved in M1.10
 - [ ] OpenCV loads its bundled native library (`OpenCvLoader`) only in tests so far. M1.10 added `--enable-native-access=ALL-UNNAMED` to the image's `java` command and loads OpenCV only on the first OCR page, but no CI check OCRs inside the container (the smoke fixture is a digital PDF). Add a scanned smoke fixture or a container check that the temp dir is writable and the native library loads · found in M1.7, narrowed in M1.10
 - [ ] `LogContext.close()` removes its keys even when an outer context set them, so `PageImageStore`'s nested `LogContext.forDocument` drops `documentId` from the Text stage's later log lines. Make `LogContext` restore the previous MDC values (common) · found in M1.10

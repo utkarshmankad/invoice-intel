@@ -3,6 +3,7 @@ package dev.invoiceintel.common.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import dev.invoiceintel.common.checksum.Verhoeff;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,6 +49,17 @@ class FakeIdsTest {
 
     assertThat(FakeIds.gstinCheckChar(tampered + gstin.substring(3, 14)))
         .isNotEqualTo(gstin.charAt(14));
+  }
+
+  @Test
+  void aadhaar_generated_hasTwelveDigitsAndValidVerhoeffCheck() {
+    var random = new Random(5);
+    for (int i = 0; i < 50; i++) {
+      String aadhaar = FakeIds.aadhaar(random);
+
+      assertThat(aadhaar).matches("[2-9][0-9]{11}");
+      assertThat(Verhoeff.isValid(aadhaar)).isTrue();
+    }
   }
 
   @Test

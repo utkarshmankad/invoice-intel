@@ -1,5 +1,7 @@
 package dev.invoiceintel.common.fixtures;
 
+import dev.invoiceintel.common.checksum.GstinChecksum;
+import dev.invoiceintel.common.checksum.Verhoeff;
 import java.util.Random;
 
 /**
@@ -8,7 +10,6 @@ import java.util.Random;
  */
 public final class FakeIds {
 
-  private static final String BASE36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   private static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   private FakeIds() {}
@@ -31,24 +32,18 @@ public final class FakeIds {
     return body + gstinCheckChar(body);
   }
 
-  /**
-   * Check character of a 14-character GSTIN body: base-36 values weighted 1 and 2 alternately, each
-   * product folded as {@code product / 36 + product % 36}.
-   */
+  /** Check character of a 14-character GSTIN body; see {@link GstinChecksum#checkChar}. */
   public static char gstinCheckChar(String body) {
-    if (body.length() != 14) {
-      throw new IllegalArgumentException("GSTIN body must have 14 characters");
-    }
-    int sum = 0;
-    for (int i = 0; i < body.length(); i++) {
-      int value = BASE36.indexOf(body.charAt(i));
-      if (value < 0) {
-        throw new IllegalArgumentException("GSTIN body must be upper-case alphanumeric");
-      }
-      int product = value * (i % 2 == 0 ? 1 : 2);
-      sum += product / 36 + product % 36;
-    }
-    return BASE36.charAt((36 - sum % 36) % 36);
+    return GstinChecksum.checkChar(body);
+  }
+
+  /**
+   * Aadhaar-format number: twelve digits, the first 2-9, the last a Verhoeff check digit. Fake but
+   * checksum-valid, so detectors treat it as a real one.
+   */
+  public static String aadhaar(Random random) {
+    String body = (2 + random.nextInt(8)) + digits(random, 10);
+    return body + Verhoeff.checkDigit(body);
   }
 
   /** Pre-GST VAT TIN: state code followed by nine digits. */

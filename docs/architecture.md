@@ -357,6 +357,21 @@ may overlap or repeat until `SpanMerger` (M2.4). Rules worth knowing:
 - Seller values (seller PAN, seller PIN, a pre-GST seller TIN that looks like a landline) are
   found too; seller-block tagging (M2.3) removes them. Patterns avoid nested quantifiers (ReDoS).
 
+Implementation (M2.2): the check-digit algorithms live in `common` (`dev.invoiceintel.common.checksum`)
+because both `pii` and `validate` (VAL-4) need them and `validate` may depend only on `common`
+(§4.1): `Verhoeff` (Aadhaar's last digit; catches every single-digit error and adjacent
+transposition) and `GstinChecksum` (GSTIN layout plus the mod-36 check character, base-36 values
+weighted 1/2 alternately and folded as `p / 36 + p % 36`). `ChecksumDetector` in `pii` runs
+beside `RegexDetector` with three rules: `checksum:gstin` (state code + PAN + entity + `Z` +
+check, reported only if the check passes), `checksum:aadhaar` (twelve digits starting 2-9,
+optionally 4-4-4 with spaces or hyphens, reported only if Verhoeff passes) and
+`regex:gstin-label`: the first 15-character code with a digit within 30 characters after a
+`GST`/`GSTIN` label (no digits in between) is reported even when its checksum or layout fails,
+because that is most likely an OCR-damaged GSTIN (recall bias). Checksum-failing GSTIN- or
+Aadhaar-shaped values without a label are not reported (an HSN, amount or document number is
+the likelier reading). Test fixtures build checksum-valid fake values with `FakeIds.gstin` and
+`FakeIds.aadhaar`, which use these classes.
+
 #### Tokens and vault (PII-3, PII-7)
 
 - **Token generation:** `token = TYPE + "_" + base32(HMAC-SHA256(tokenKey, normalized(value)))[0..8]`.
@@ -457,6 +472,9 @@ public interface ValidationRule {
 | VAL-7 | parse `amountInWords` (Indian numbering: lakh, crore) vs `grandTotal` |
 
 All amounts use `BigDecimal` with `HALF_UP` at 2 decimals.
+
+VAL-4 uses `GstinChecksum.isValid` from `common` (`dev.invoiceintel.common.checksum`, added in
+M2.2), the same check the PII detector uses, so the two can't disagree.
 
 **Confidence scoring (VAL-8):**
 ```
