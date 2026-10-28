@@ -12,4 +12,6 @@ dependencies {
     implementation(libs.spotbugs.gradle.plugin)
     implementation(libs.pitest.gradle.plugin)
     implementation(libs.gatling.gradle.plugin)
+    // The Gatling plugin brings Jackson 2.22.2, which has high-severity advisories.
+    implementation(platform(libs.jackson2.bom))
 }
