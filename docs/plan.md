@@ -78,7 +78,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M1.4** · `pipeline`: JobRunr setup on Postgres, document state machine, stage-run table, reprocess-from-stage · *NFR-5, §5.1* · **Done when** a no-op stage chain advances a document RECEIVED → TEXT_READY and can be re-run. Done 2026-10-28: `PipelineService`, `StageJob`, V3 `stage_run`; uploads start the chain with a placeholder Text stage, so CI smoke documents now reach `TEXT_READY` (§5.1).
 - [x] **M1.5** · `text`: PDF text layer with word boxes (PDFBox) and has-text-layer check · *TXT-1, TXT-2* · **Done when** fixture PDF yields expected words + boxes. Done 2026-10-28: `PdfTextExtractor`, `TextLayer` records (architecture §6.2).
 - [x] **M1.6** · `text`: page rendering at 300 DPI, one page at a time; page images to raw bucket · *TXT-2, §10.1* · **Done when** page PNGs stored and referenced in `blob_ref`. Done 2026-10-28: `PageRenderer`, `PageImageStore` (architecture §6.2).
-- [ ] **M1.7** · `text`: OpenCV preprocessing (grayscale, deskew, threshold, denoise) · *TXT-3* · **Done when** skewed synthetic scan is deskewed within ±1°.
+- [x] **M1.7** · `text`: OpenCV preprocessing (grayscale, deskew, threshold, denoise) · *TXT-3* · **Done when** skewed synthetic scan is deskewed within ±1°. Done 2026-10-28: `ImagePreprocessor` (architecture §6.2).
 - [ ] **M1.8** · `text`: Tess4J OCR to the common `TextLayer` format · *TXT-1, TXT-2* · **Done when** rasterised fixture OCRs with ≥ 95% word match.
 - [ ] **M1.9** · `text`: rule-based document classifier · *TXT-4, ADR-09* · **Done when** all fixture types classified correctly.
 - [ ] **M1.10** · Text stage job wired into the pipeline · *§5.2* · **Done when** uploaded fixture reaches TEXT_READY with a stored text layer. Also remove `RECEIVED` from `SMOKE_EXPECT_STATUSES` in `ci.yml` (accepted since M1.3, owner decision 2026-10-28).
@@ -193,6 +193,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] The JobRunr dashboard is off: it serves on its own port (8000) without the app's login. Decide whether to enable it for `local` only, bound to `127.0.0.1` with its own credentials from `.env` · found in M1.4
 - [ ] Stage job concurrency uses JobRunr's default worker count; size it from `invoice-intel.pipeline.*` (architecture §5.2, §10.1) when render/OCR stages arrive (M1.6–M1.8) · found in M1.4
 - [ ] Image uploads (JPEG/PNG) have no page image yet: `PageImageStore` renders PDFs only. The Text job (M1.10) should store the image itself as page 1 (normalised to PNG, "images used as-is", §6.2) · found in M1.6
+- [ ] OpenCV loads its bundled native library (`OpenCvLoader`) only in unit tests so far. When the Text job is wired (M1.10), check it loads in the container image (temp dir writable, platform in the jar) and that the app runs with `--enable-native-access=ALL-UNNAMED` (ADR-01) · found in M1.7
 - [ ] `scripts/ci/perf-summary.sh` looks for `js/stats.json`, which Gatling 3.16 reports no longer contain, so the job summary always says "No Gatling stats found"; read `simulation.log` or the HTML report instead (the assertions still gate) · found in M0.15
 
 ---

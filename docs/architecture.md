@@ -245,6 +245,14 @@ PNG goes to a callback before the next page is rendered, so one page bitmap is o
 call (§10.1). `PageImageStore` writes each PNG to the raw bucket, then upserts its `PAGE_IMAGE`
 `blob_ref` row (`ON CONFLICT (bucket, key)`), so re-running keeps one row per page. Capping
 concurrent render/OCR jobs with `max-concurrent-page-jobs` comes with the Text job (M1.10).
+Implementation (M1.7): `ImagePreprocessor.preprocess` (OpenCV via `org.openpnp:opencv` 4.9.0-0,
+native library loaded once by `OpenCvLoader`) decodes the image as grayscale, deskews it, applies a
+Gaussian adaptive threshold (block 31, offset 15) and a 3×3 median denoise, and returns a
+`PreprocessedImage` (binarized PNG + corrected skew). The skew is the median long-side angle of the
+minimum-area rectangles around text lines (Otsu ink mask, words merged into lines by a horizontal
+dilation 1/40 of the page wide; blobs count from 1/10 of the page width and a 5:1 aspect). One
+rectangle around all ink was off by about 1° on ragged invoice layouts. Skews over 15° are treated
+as layout and left alone. Undecodable images raise `TextExtractionException`.
 
 **Classification (TXT-4)** is rule-based at this stage, because no LLM may see the
 document before PII removal: keyword and pattern scoring ("Tax Invoice", "Credit Note",
