@@ -5,8 +5,8 @@ import java.util.Objects;
 
 /**
  * One page of a {@link TextLayer}. {@code width}, {@code height} and the word boxes share one unit
- * per page: PDF points (1/72 inch) for {@link TextSource#PDF_TEXT}, with the origin at the top left
- * of the page.
+ * per page: PDF points (1/72 inch) for {@link TextSource#PDF_TEXT} and image pixels for {@link
+ * TextSource#OCR}, with the origin at the top left of the page.
  *
  * @param pageNo 1-based page number
  */

@@ -2,6 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :text:dependencies --write-locks
+com.github.jai-imageio:jai-imageio-core:1.4.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.spotbugs:spotbugs-annotations:4.10.5=spotbugs
 com.github.spotbugs:spotbugs:4.10.5=spotbugs
 com.github.stephenc.jcip:jcip-annotations:1.0-1=spotbugs
@@ -9,11 +10,14 @@ com.google.code.findbugs:jsr305:3.0.2=spotbugs
 com.google.code.gson:gson:2.14.0=spotbugs
 com.google.errorprone:error_prone_annotations:2.48.0=spotbugs
 com.h3xstream.findsecbugs:findsecbugs-plugin:1.14.0=spotbugsPlugins
-commons-io:commons-io:2.22.0=spotbugs
+commons-io:commons-io:2.22.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,spotbugs,testCompileClasspath,testRuntimeClasspath
 commons-logging:commons-logging:1.4.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jaxen:jaxen:2.0.6=spotbugs
 net.bytebuddy:byte-buddy:1.18.15=integrationTestCompileClasspath,integrationTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+net.java.dev.jna:jna:5.19.1=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.sf.saxon:Saxon-HE:12.10=spotbugs
+net.sourceforge.lept4j:lept4j:1.24.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+net.sourceforge.tess4j:tess4j:5.20.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.apache.bcel:bcel:6.13.0=spotbugs
 org.apache.commons:commons-lang3:3.21.0=spotbugs
 org.apache.commons:commons-text:1.15.0=spotbugs
@@ -23,6 +27,7 @@ org.apache.httpcomponents.core5:httpcore5:5.4.4=integrationTestRuntimeClasspath,
 org.apache.logging.log4j:log4j-api:2.26.1=spotbugs
 org.apache.logging.log4j:log4j-core:2.26.1=spotbugs
 org.apache.pdfbox:fontbox:3.0.8=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.apache.pdfbox:jbig2-imageio:3.0.5=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.apache.pdfbox:pdfbox-io:3.0.8=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.apache.pdfbox:pdfbox:3.0.8=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.apiguardian:apiguardian-api:1.1.2=integrationTestCompileClasspath,testCompileClasspath
@@ -32,6 +37,7 @@ org.jacoco:org.jacoco.agent:0.8.16=jacocoAgent,jacocoAnt
 org.jacoco:org.jacoco.ant:0.8.16=jacocoAnt
 org.jacoco:org.jacoco.core:0.8.16=jacocoAnt
 org.jacoco:org.jacoco.report:0.8.16=jacocoAnt
+org.jboss:jboss-vfs:3.3.2.Final=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.jspecify:jspecify:1.0.1=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,spotbugs,testCompileClasspath,testRuntimeClasspath
 org.junit.jupiter:junit-jupiter-api:6.0.3=integrationTestCompileClasspath,integrationTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.junit.jupiter:junit-jupiter-engine:6.0.3=integrationTestRuntimeClasspath,testRuntimeClasspath
