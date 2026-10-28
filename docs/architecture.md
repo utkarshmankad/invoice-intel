@@ -458,6 +458,22 @@ quarter in capitals, plus 30 negatives); the default test run guards the chosen 
 The rebuilt image-only PDF is the simplest way to *guarantee* PII-4. Selective removal of
 text operators from the original content stream is a possible later improvement (ADR-05).
 
+Implementation (M2.7): `ImageRedactor.redact(textResult, layer, pageImages)` masks the words of
+`TextRedactor.Result.spans()` (seller spans already dropped) on each page image and returns the
+same `RedactedContent` with a masked PNG per page (`Page.image()`); `mask(page, spans, image)`
+does one page. Word boxes are scaled from the page's unit (PDF points or OCR pixels) to the
+image's pixels, every word a span touches is masked whole, and each box is padded by 0.4 word
+heights above and below (PDF boxes end at the baseline, so descenders stick out) and 0.15 word
+heights left and right, at least 2 px. Masks are solid black on an RGB copy of the image. The
+image must be the one the word boxes were measured on: for OCR pages that is the preprocessed
+(deskewed) image, not the stored `PAGE_IMAGE`. `RedactedPdf(dpi).build(content)` writes a new
+PDFBox document with one page per masked image (page size = pixels × 72 / dpi) and nothing else,
+so it has no text layer, fonts, annotations or metadata of the original. `RedactionProofTest`
+runs detectors → merge → text and image redaction → rebuilt PDF on synthetic invoices, then
+re-extracts the PDF (no words) and OCRs it (no fixture PII value, while totals and seller PAN are
+still read). Storing the redacted pages and PDF (`REDACTED_PAGE`, `REDACTED_PDF`) is part of the
+PII stage (M2.10).
+
 Implementation (M2.6): `TextRedactor(tokens, vault).redact(layer, mergedSpans, ctx, mode)`
 returns `TextRedactor.Result(content, spans, vaultEntries)`; nothing is persisted (the PII stage,
 M2.10, stores `pii_span` rows and vault entries). `RedactionMode` is `PSEUDONYMIZE` or `REDACT`
@@ -510,7 +526,8 @@ by `\n`). Each `RedactedContent.Page` (also package-private constructor) has `pa
 `height`, `words()` (`text.Word` with boxes, PII words replaced by token or marker words) and
 `text()` (the words joined by single spaces, as in `PageText`, so offsets map back to word boxes
 for evidence). No accessor returns an original value, and `toString()` shows the document ID,
-mode and page/word counts only (PII-8). Page images join it in M2.7; page/line markers for the
+mode and page/word counts only (PII-8). M2.7 adds the masked page image (`Page.image()`, a PNG
+copy, empty until `ImageRedactor` ran); page/line markers for the
 `TEXT` strategy are built by `extract` (M3) from the word boxes.
 
 ### 6.5 Extract (`extract`)

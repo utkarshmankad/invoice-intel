@@ -334,7 +334,7 @@ class TextRedactorTest {
         .contains(CTX.documentId().toString(), "pages=1", "spans=1", "vaultEntries=1")
         .doesNotContain(MOBILE, "Phone", token);
     assertThat(page(result).toString())
-        .isEqualTo("RedactedContent.Page[pageNo=1, words=2]")
+        .isEqualTo("RedactedContent.Page[pageNo=1, words=2, image=false]")
         .doesNotContain(token);
   }
 

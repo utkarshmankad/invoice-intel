@@ -4,6 +4,7 @@ import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.text.Word;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -13,8 +14,8 @@ import java.util.stream.Collectors;
  * Nothing in here holds an original PII value.
  *
  * <p>Per page it keeps the redacted words with their boxes, so extraction evidence still maps to
- * page positions (architecture.md §6.3, §6.5). Redacted page images are added by the image redactor
- * (M2.7).
+ * page positions (architecture.md §6.3, §6.5), and, once {@link ImageRedactor} ran, the page image
+ * with the same PII masked (PII-5) for the vision strategies.
  */
 public final class RedactedContent {
 
@@ -39,6 +40,11 @@ public final class RedactedContent {
   /** Pages in text-layer order. */
   public List<Page> pages() {
     return pages;
+  }
+
+  /** The same document with {@code pages} in place of its pages (e.g. with masked images). */
+  RedactedContent withPages(List<Page> pages) {
+    return new RedactedContent(documentId, mode, pages);
   }
 
   /** The redacted text of all pages, one page per line, in page order. */
@@ -71,8 +77,13 @@ public final class RedactedContent {
     private final double height;
     private final List<Word> words;
     private final String text;
+    private final byte[] image;
 
     Page(int pageNo, double width, double height, List<Word> words) {
+      this(pageNo, width, height, words, null);
+    }
+
+    private Page(int pageNo, double width, double height, List<Word> words, byte[] image) {
       if (pageNo < 1) {
         throw new IllegalArgumentException("pageNo must be >= 1");
       }
@@ -81,6 +92,12 @@ public final class RedactedContent {
       this.height = height;
       this.words = List.copyOf(Objects.requireNonNull(words, "words"));
       this.text = this.words.stream().map(Word::text).collect(Collectors.joining(" "));
+      this.image = image == null ? null : image.clone();
+    }
+
+    /** This page with {@code png} as its masked image ({@link ImageRedactor}). */
+    Page withImage(byte[] png) {
+      return new Page(pageNo, width, height, words, Objects.requireNonNull(png, "png"));
     }
 
     /** 1-based page number. */
@@ -107,9 +124,23 @@ public final class RedactedContent {
       return text;
     }
 
+    /**
+     * The page image as PNG with every PII word masked (PII-5), or empty before {@link
+     * ImageRedactor} ran. Each call returns a copy.
+     */
+    public Optional<byte[]> image() {
+      return Optional.ofNullable(image).map(byte[]::clone);
+    }
+
     @Override
     public String toString() {
-      return "RedactedContent.Page[pageNo=" + pageNo + ", words=" + words.size() + "]";
+      return "RedactedContent.Page[pageNo="
+          + pageNo
+          + ", words="
+          + words.size()
+          + ", image="
+          + (image != null)
+          + "]";
     }
   }
 }
