@@ -86,7 +86,8 @@ Set a spending alert or limit on every paid account before the first deploy.
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Object storage | `fly secrets set` |
 | `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED` | Bucket names | `fly.toml` `[env]` |
 | `LLM_*_API_KEY` | LLM provider keys | `fly secrets set` |
-| `VAULT_KEYSET` | Encryption key for the PII vault | `fly secrets set` |
+| `VAULT_KEYSET` | Encryption key for the PII vault (Tink AEAD JSON keyset) | `fly secrets set` |
+| `TOKEN_KEYSET` | Key for deterministic PII tokens (Tink `HMAC_SHA256_256BITTAG_RAW` JSON keyset); never rotated once tokens are stored | `fly secrets set` |
 | `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` (or OAuth settings) | Login; user defaults to `admin`, password is required | `fly secrets set` |
 
 Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
@@ -166,7 +167,7 @@ Mitigations, in order of preference:
    ```
 3. Set secrets (first time and on rotation):
    ```bash
-   fly secrets set DB_URL=... DB_USER=... DB_PASSWORD=... S3_ENDPOINT=... S3_ACCESS_KEY=... S3_SECRET_KEY=... VAULT_KEYSET=...
+   fly secrets set DB_URL=... DB_USER=... DB_PASSWORD=... S3_ENDPOINT=... S3_ACCESS_KEY=... S3_SECRET_KEY=... VAULT_KEYSET=... TOKEN_KEYSET=...
    ```
 4. Deploy (Fly builds the image from the `Dockerfile` and pushes it to its registry):
    ```bash
@@ -189,7 +190,7 @@ previous release so a rollback does not break the database.
 - Do **not** bulk-copy raw invoices by default. Re-upload through the API so the cloud
   pipeline does dedupe, PII handling and storage itself.
 - The PII vault is migrated only if needed, and only by exporting it encrypted and
-  importing it with the same `VAULT_KEYSET`. Never move it as plain text.
+  importing it with the same `VAULT_KEYSET` and `TOKEN_KEYSET`. Never move it as plain text.
 - Eval reports and redacted samples are already in Git; nothing to migrate.
 
 ---

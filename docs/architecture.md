@@ -401,8 +401,21 @@ the likelier reading). Test fixtures build checksum-valid fake values with `Fake
 - **Token generation:** `token = TYPE + "_" + base32(HMAC-SHA256(tokenKey, normalized(value)))[0..8]`.
   The same real value always gives the same token across all documents, which keeps order
   numbers joinable for reconciliation without storing them in clear text.
+  `TokenGenerator` (M2.5): `normalized` collapses whitespace runs to one space, trims and
+  upper-cases ASCII letters; Unicode case mapping and NFKC are left out (FindSecBugs
+  `IMPROPER_UNICODE`, and the identifiers that must join are ASCII). base32 is RFC 4648, so the
+  8 characters are the first 40 bits of the MAC.
 - **Vault:** `pii_vault(token, type, ciphertext)`; `ciphertext` = Tink AEAD with
   associated data = token. Keys come from `VAULT_KEYSET` (env/secret), never from the DB.
+  `PiiVault.seal/open` (M2.5) produce and open `VaultEntry` records; a ciphertext moved to
+  another token, tampered with or written under another key fails to open.
+- **Keys (PII-7):** `PiiKeys` builds both from Tink JSON keysets in environment variables:
+  `TOKEN_KEYSET` (HMAC-SHA256 with no output prefix, Tinkey template
+  `HMAC_SHA256_256BITTAG_RAW`; any other primary key is rejected, because a Tink-prefixed tag
+  starts with the constant key ID and would give every value the same token) and
+  `VAULT_KEYSET` (AEAD, e.g. `AES256_GCM`). Error messages name the variable only and don't
+  chain Tink's exceptions. Rotating `TOKEN_KEYSET` changes every token, so it is not rotated
+  once tokens are stored. Tink 1.24.0 (Maven Central, checked 2026-10-28).
 - **Order-history import** passes order numbers through the same tokenizer, so
   reconciliation joins on tokens.
 - Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry.
