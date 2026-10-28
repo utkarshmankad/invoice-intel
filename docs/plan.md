@@ -1,6 +1,6 @@
 # Invoice Intel — Plan
 
-> Status: v0.1 · Last updated: 2026-10-28
+> Status: v0.2 · Last updated: 2026-10-28
 >
 > Execution order for `specs.md` and `architecture.md`. One task = one short-lived branch =
 > one squash-merged PR (trunk-based, `docs/ci.md`). Tick `[x]` in the PR that finishes the task. New work found along the way goes
@@ -16,18 +16,24 @@
 
 ## Milestone overview
 
-| Milestone | Goal | Depends on |
-|-----------|------|------------|
-| D | Owner data preparation (runs in parallel) | — |
-| M0 | Buildable skeleton, local stack, CI build contract | — |
-| M1 | Ingest and text extraction | M0 |
-| M2 | PII detection, tokens, redaction, PII gate | M1 |
-| M3 | LLM extraction and pipeline wiring | M2 |
-| M4 | Validation rules and decisions | M3 |
-| M5 | Eval harness and first baseline | M4, D3–D5 |
-| M6 | Order-history import and reconciliation | M4, D2 |
-| M7 | Review UI | M4 |
-| M8 | Case study, redacted samples, release | M5, M6, M7 |
+| Milestone | Goal | Depends on | Parallel |
+|-----------|------|------------|----------|
+| D | Owner data preparation (runs in parallel) | — | — |
+| M0 | Buildable skeleton, local stack, CI build contract | — | — |
+| M1 | Ingest and text extraction | M0 | — |
+| M2 | PII detection, tokens, redaction, PII gate | M1 | {M2.2, M2.3, M2.4, M2.5, M2.8} |
+| M3 | LLM extraction and pipeline wiring | M2 | {M3.5, M3.6, M3.7} |
+| M4 | Validation rules and decisions | M3 | {M4.2, M4.3, M4.4, M4.5} · {M4.8, M4.9} |
+| M5 | Eval harness and first baseline | M4, D3–D5 | {M5.2, M5.3, M5.4} |
+| M6 | Order-history import and reconciliation | M4, D2 | — |
+| M7 | Review UI | M4 | {M7.2, M7.3} |
+| M8 | Case study, redacted samples, release | M5, M6, M7 | — |
+
+**Parallel** lists groups of tasks the milestone runner may have in flight at the same time,
+each on its own branch and PR (`runner.md` §3.3, §4). A group starts once every task listed
+before it in the milestone is done. Tasks in no group run alone. Groups hold tasks that
+shouldn't touch the same files; `[owner]` tasks and tasks that wire a stage job into the
+pipeline are never in a group. Changing a group needs a PR.
 
 Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
 `feat/m1.3-upload-endpoint`). Every PR must pass the `CI gate` check before squash merge.
@@ -211,3 +217,4 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 | 2026-10-28 | Local S3 store is SeaweedFS, not MinIO (MinIO images no longer public); ADR-11 (owner decision) | M0.5 |
 | 2026-10-28 | `/api/**` stateless Basic, CSRF off, no `WWW-Authenticate` challenge; ADR-12 (owner decision) | M0.7 |
 | 2026-10-28 | First fully green `CI gate` with all 14 jobs running, none skipped: [run 40635998717](https://github.com/utkarshmankad/invoice-intel/actions/runs/40635998717) on [PR #13](https://github.com/utkarshmankad/invoice-intel/pull/13). Smoke fixture checks stay dormant until M1.1/M1.3 by design | M0.16 |
+| 2026-10-28 | Plan v0.2: Parallel column; the runner may run grouped tasks in parallel (`runner.md` v0.2) | — |
