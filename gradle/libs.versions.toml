@@ -12,6 +12,7 @@ pitest-junit5 = "1.2.3"
 jacoco = "0.8.16"
 archunit = "1.5.1"
 pdfbox = "3.0.8"
+opencv = "4.9.0-0" # org.openpnp:opencv, latest on Maven Central, checked 2026-10-28
 aws-sdk = "2.56.0" # checked 2026-10-28
 tika = "4.1.0" # checked 2026-10-28
 jobrunr = "9.0.2" # checked 2026-10-28 (ADR-01)
@@ -43,6 +44,7 @@ testcontainers = { module = "org.testcontainers:testcontainers" }
 spring-jdbc = { module = "org.springframework:spring-jdbc" }
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+opencv = { module = "org.openpnp:opencv", version.ref = "opencv" }
 jobrunr = { module = "org.jobrunr:jobrunr", version.ref = "jobrunr" }
 jobrunr-spring-boot-starter = { module = "org.jobrunr:jobrunr-spring-boot-4-starter", version.ref = "jobrunr" }
 awaitility = { module = "org.awaitility:awaitility" }
