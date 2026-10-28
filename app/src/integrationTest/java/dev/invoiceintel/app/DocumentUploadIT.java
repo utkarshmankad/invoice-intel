@@ -147,6 +147,32 @@ class DocumentUploadIT {
   }
 
   @Test
+  void get_uploadedDocument_returnsReceivedStatus() throws Exception {
+    UUID id = firstId(upload(List.of(new Part("a.pdf", "application/pdf", invoicePdf(6)))));
+
+    var response = get("/api/documents/" + id);
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    JsonNode body = json.readTree(response.body());
+    assertThat(body.get("id").asString()).isEqualTo(id.toString());
+    assertThat(body.get("status").asString()).isEqualTo("RECEIVED");
+  }
+
+  @Test
+  void get_unknownDocument_is404ProblemDetail() throws Exception {
+    var response = get("/api/documents/" + UUID.randomUUID());
+
+    assertThat(response.statusCode()).isEqualTo(404);
+    assertThat(response.headers().firstValue("Content-Type"))
+        .hasValueSatisfying(type -> assertThat(type).startsWith("application/problem+json"));
+  }
+
+  @Test
+  void get_malformedId_is400() throws Exception {
+    assertThat(get("/api/documents/not-a-uuid").statusCode()).isEqualTo(400);
+  }
+
+  @Test
   void smokeFixture_isTheGeneratedGstTaxInvoice() throws IOException {
     // The CI smoke test uploads this file (scripts/ci/smoke-test.sh); keep it in sync with the
     // generator so it stays synthetic.
@@ -168,6 +194,15 @@ class DocumentUploadIT {
 
   private UUID firstId(HttpResponse<String> response) {
     return UUID.fromString(json.readTree(response.body()).get(0).get("id").asString());
+  }
+
+  private HttpResponse<String> get(String path) throws IOException, InterruptedException {
+    var credentials = (ADMIN_USERNAME + ":" + ADMIN_PASSWORD).getBytes(StandardCharsets.UTF_8);
+    var request =
+        HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+            .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(credentials))
+            .build();
+    return http.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpResponse<String> upload(List<Part> parts) throws IOException, InterruptedException {

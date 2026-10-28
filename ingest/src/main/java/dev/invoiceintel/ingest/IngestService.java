@@ -11,6 +11,7 @@ import dev.invoiceintel.storage.BlobStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -55,6 +56,11 @@ public final class IngestService {
       results.add(ingestOne(files.get(i), types.get(i)));
     }
     return List.copyOf(results);
+  }
+
+  /** Status of the document, or empty if there is none with {@code id}. */
+  public Optional<DocumentStatus> find(DocumentId id) {
+    return documents.findStatus(id).map(status -> new DocumentStatus(id, status));
   }
 
   private IngestResult ingestOne(byte[] content, FileType type) {

@@ -173,6 +173,11 @@ per-provider rate limiter (semaphore sized from config).
   per file, 100 MB per request (`413` above). M1.3 stops at `RECEIVED`; M1.4 adds the enqueue
   hook (no-op chain) and M1.10 wires the real Text job.
 - Persistence uses Spring's `JdbcClient` until a module needs JPA entities.
+- `GET /api/documents/{id}` returns `{id, status}` from `IngestService.find` (M1.3, so the smoke
+  test can poll it); unknown IDs get a `404` problem detail. UC2's decision and extraction
+  fields are added when those stages exist.
+- `SPRING_ENDPOINT` (FindSecBugs inventory marker, not a defect) is suppressed per controller
+  with `@SuppressFBWarnings` and a justification (owner decision 2026-10-28).
 
 ### 6.2 Text (`text`)
 

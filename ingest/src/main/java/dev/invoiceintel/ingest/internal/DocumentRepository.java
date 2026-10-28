@@ -24,6 +24,13 @@ public final class DocumentRepository {
         .map(DocumentId::new);
   }
 
+  public Optional<String> findStatus(DocumentId id) {
+    return jdbc.sql("SELECT status FROM document WHERE id = ?")
+        .param(id.value())
+        .query(String.class)
+        .optional();
+  }
+
   /**
    * Inserts the document in {@code RECEIVED} with its ORIGINAL blob reference, in one statement so
    * both rows exist or neither does.
