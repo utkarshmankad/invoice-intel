@@ -396,6 +396,30 @@ Aadhaar-shaped values without a label are not reported (an HSN, amount or docume
 the likelier reading). Test fixtures build checksum-valid fake values with `FakeIds.gstin` and
 `FakeIds.aadhaar`, which use these classes.
 
+Implementation (M2.8): `NerDetector` (`ner:<model>`, e.g. `ner:distilbert-conll03`) runs a
+DistilBERT token-classification model (ADR-15) with DJL's ONNX Runtime engine and HuggingFace
+tokenizer. Each page's `PageText` is tokenized once (no truncation) and classified in windows of
+256 tokens overlapping by 64, so pages longer than the model's 512-token limit are covered; every
+token takes the prediction of the window where it is farthest from an edge. A word is typed when
+any of its tokens has B- plus I- probability ≥ 0.5 for an entity (threshold configurable, recall
+bias): `PER` → `PERSON` (wins ties), `LOC` → `ADDRESS` (city and street names the address-block
+rules miss; seller and product mentions are dropped later by seller-range filtering or cost some
+precision), `ORG`/`MISC` → nothing. Words wholly covered by an `IndianStates` name are never
+reported (specs §6.1). Consecutive words of one type form one span over whole words; no text is
+logged (PII-8). Before tokenizing, words written all in capitals are title-cased in place (offsets
+unchanged), because the cased model misses names printed in capitals: on the benchmark this
+raised upper-case name recall from 5% to 89%. The model directory comes from the build's pinned,
+SHA-256-verified Hugging Face download (`./gradlew :pii:downloadNerModel`, cached in
+`~/.cache/invoice-intel/models/<repo>/<sha>/`, override with `-PmodelCacheDir` or
+`INVOICE_INTEL_MODEL_CACHE`); `NerDetector.load` sets DJL offline mode (`ai.djl.offline=true`),
+which also disables DJL's EC2 telemetry, and the ONNX Runtime and tokenizers natives
+(osx-aarch64, linux-x86_64) come from the Maven jars. Inference takes ~2 ms per short snippet and
+~100 ms per 400-word page on an Apple M-series CPU. `NerBenchmarkTest` measures PERSON recall and
+precision on synthetic Indian names (`SyntheticNerSamples`: 300 names in 15 invoice contexts, a
+quarter in capitals, plus 30 negatives); the default test run guards the chosen model's numbers,
+`./gradlew :pii:nerBenchmark` compares both candidates (report in
+`pii/build/reports/ner-benchmark/`). NER is not yet wired into the PII stage (M2.9/M2.10).
+
 #### Tokens and vault (PII-3, PII-7)
 
 - **Token generation:** `token = TYPE + "_" + base32(HMAC-SHA256(tokenKey, normalized(value)))[0..8]`.
@@ -750,6 +774,10 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 | Tesseract / OpenCV native | ~200 MB |
 | Metaspace, threads, buffers | ~250 MB |
 
+Measured 2026-10-28 (M2.8, macOS arm64): the chosen NER model (ADR-15) adds ~180 MB RSS after
+loading and ~217 MB after inference on a 400-word page, inside the NER budget; the multilingual
+candidate peaked at ~396 MB.
+
 Page rendering is the main heap risk: render one page at a time and cap concurrent
 render/OCR jobs (config, default 2).
 
@@ -906,6 +934,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-12 | `/api/**`: stateless HTTP Basic with CSRF off, 401 without a `WWW-Authenticate` challenge; the FindSecBugs `SPRING_CSRF_PROTECTION_DISABLED` finding is suppressed on that one method with this ADR as justification (owner decision 2026-10-28, M0.7) | CSRF tokens on `/api/**` too; CSRF off with the default Basic challenge | No session cookie means no CSRF via cookies. Without the challenge, browsers never cache Basic credentials, which closes the other route. CSRF tokens would force the CLI, smoke script and Gatling to fetch a token and a session first. |
 | ADR-13 | Structured logs use Spring Boot's built-in ECS JSON formatter; the PII backstop is a `StructuredLoggingJsonMembersCustomizer` value processor, not a Logback filter (M0.8) | Logback `Filter` (can only accept or drop events, not rewrite them); `logstash-logback-encoder` with a masking decorator | Built into Boot, no new dependency, and the value processor reaches every string field including MDC and stack traces. Masking applies only to the JSON output, so plain-text console logging must not be re-enabled. |
 | ADR-14 | Synthetic invoice generator in `common` test fixtures (`java-test-fixtures`), PDFBox as a `testFixturesImplementation` dependency (owner decision 2026-10-28, M1.1) | A separate test-only `fixtures` module | Shared by every module's tests without a new module or any main-code dependency, so ArchUnit rules and the §4 module list stay unchanged. |
+| ADR-15 | NER model `onnx-community/distilbert-NER-ONNX` at `3a19fe9404a4469d91aa3d551558a97f68872f67` (int8 `onnx/model_quantized.onnx`, 65,772,734 bytes, SHA-256 `9419a876…a4e210d8`; ONNX export of `dslim/distilbert-NER`, English CoNLL-03, labels PER/ORG/LOC/MISC), downloaded by Gradle from huggingface.co at the pinned commit with every file's SHA-256 checked, cached outside the repo (owner decision 2026-10-28, M2.8). Licence: Apache-2.0 per the base model card (`dslim/distilbert-NER`); the conversion repo declares none. Measured on synthetic Indian names (threshold 0.5, all-caps words title-cased): word recall 88.7%, whole-name recall 85.3%, precision 91.3%; RSS +217 MB after load and inference (macOS arm64) | `Xenova/distilbert-base-multilingual-cased-ner-hrl` at `c2a4dbf593c57f47004c5bc2d3770d311aee9c43` (int8 `onnx/model_quantized.onnx`, 135,359,829 bytes, SHA-256 `24a0b98f…b2edb986`; export of `Davlan/distilbert-base-multilingual-cased-ner-hrl`, AFL-3.0 per the base card, conversion repo declares none): word recall 81.0%, whole-name recall 76.3%, precision 96.6%, RSS +396 MB peak. Thresholds 0.3/0.15 are in the benchmark report; both pins are in `pii/build.gradle.kts` | Recall is the costly error (specs §6.3): the English model finds more of the synthetic Indian names, at half the size and inside the ~300 MB budget (§10.1); the multilingual model is more precise but misses more names and exceeds the budget. Neither reaches 99% alone; NER backs up the rule and address-block layers (R3). |
 
 ---
 
@@ -914,7 +943,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | # | Question |
 |---|----------|
 | A1 | ~~Confirm Boot 4 compatibility of Spring AI, JobRunr, springdoc and DJL at scaffold time.~~ Resolved 2026-10-28 (M0.1): all compatible; see ADR-01. |
-| A2 | Which NER model (size vs Indian-name recall)? Benchmark two candidates on the PII label set. |
+| A2 | ~~Which NER model (size vs Indian-name recall)? Benchmark two candidates on the PII label set.~~ Resolved 2026-10-28 (M2.8): `onnx-community/distilbert-NER-ONNX` (int8 DistilBERT, CoNLL-03), PERSON word recall 88.7% / precision 91.3% on synthetic Indian names vs 81.0% / 96.6% for the multilingual DistilBERT; see ADR-15. Re-measure on the owner's labelled set (M5). |
 | A3 | Which LLMs to compare in the first eval (spec R6)? |
 | A4 | Does Hindi text appear often enough to need the `hin` OCR language? |
 | A5 | Is the vision strategy accurate enough on redacted images, given masked regions may confuse layout understanding? |
