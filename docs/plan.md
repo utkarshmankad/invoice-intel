@@ -66,7 +66,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M0.13** · SpotBugs + FindSecBugs (`spotbugsMain`), PIT plugin configured for `pii` and `validate`, Gradle dependency locking · *NFR-13* · **Done when** `static-analysis` job passes and `./gradlew :pii:pitest` runs.
 - [x] **M0.14** · `compose.ci.yaml`: app container from `invoice-intel:ci` (2 GB limit), WireMock LLM stub with 800 ms latency, throwaway keys · *NFR-10, NFR-13, ci.md §4* · **Done when** `container` and `smoke` jobs pass.
 - [x] **M0.15** · `perf` module: Gatling Java DSL, `thresholds.conf`, health/auth simulation first (pipeline scenarios added in M4.10) · *NFR-3, NFR-13, ci.md §5* · **Done when** `performance` job runs and its assertions gate the PR.
-- [ ] **M0.16** · First fully green `CI gate` on a PR with all jobs running (none skipped except PR-only ones on `main`) · *NFR-13* · **Done when** green run linked in the Decisions log.
+- [x] **M0.16** · First fully green `CI gate` on a PR with all jobs running (none skipped except PR-only ones on `main`) · *NFR-13* · **Done when** green run linked in the Decisions log.
 
 ---
 
@@ -204,3 +204,4 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 | 2026-10-28 | M0.9 ships with M0.14 in one PR: a `Dockerfile` turns on the `smoke` job, which needs `compose.ci.yaml` (owner decision) | M0.9 |
 | 2026-10-28 | Local S3 store is SeaweedFS, not MinIO (MinIO images no longer public); ADR-11 (owner decision) | M0.5 |
 | 2026-10-28 | `/api/**` stateless Basic, CSRF off, no `WWW-Authenticate` challenge; ADR-12 (owner decision) | M0.7 |
+| 2026-10-28 | First fully green `CI gate` with all 14 jobs running, none skipped: [run 40635998717](https://github.com/utkarshmankad/invoice-intel/actions/runs/40635998717) on [PR #13](https://github.com/utkarshmankad/invoice-intel/pull/13). Smoke fixture checks stay dormant until M1.1/M1.3 by design | M0.16 |

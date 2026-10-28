@@ -7,7 +7,7 @@ sends low-confidence documents to a review UI. Portfolio project, single user.
 
 ## Status
 
-Milestone M0 in progress: Gradle skeleton and build contract exist; no features yet. Next: the first unchecked task in `docs/plan.md`.
+Milestone M0 done (skeleton, build contract, CI gate green). M1 (ingest and text) next; no features yet. Next: the first unchecked task in `docs/plan.md`.
 
 ## Source-of-truth documents
 
