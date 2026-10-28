@@ -34,6 +34,17 @@ invoice-intel:
     ocr-languages: [eng]
     max-concurrent-page-jobs: 2
 
+# Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its
+# own tables. The dashboard stays off: it would listen on its own port without the app's login.
+jobrunr:
+  background-job-server:
+    enabled: true
+  dashboard:
+    enabled: false
+  miscellaneous:
+    # JobRunr reports anonymous usage data unless told not to; this app sends nothing out.
+    allow-anonymous-data-usage: false
+
 # JSON log lines (ECS) with MDC fields such as documentId and stage (NFR-6). The customizer
 # masks PII-shaped strings in every value as a backstop (PII-8, architecture.md §11).
 logging:

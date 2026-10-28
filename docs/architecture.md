@@ -134,6 +134,36 @@ RECEIVED ─► TEXT_READY ─► PII_CLEAN ─► EXTRACTED ─► VALIDATED �
 - `FAILED` always records `stage`, `reason_code` and a PII-free message.
 - Reconciliation also runs as a batch job over all documents after an order-history import.
 
+Implementation (M1.4), in `pipeline`:
+
+- `DocumentState` is the status enum of the diagram (declared in pipeline order). `Stage` is the
+  per-document chain `TEXT` (RECEIVED → TEXT_READY), `PII` (→ PII_CLEAN), `EXTRACT`
+  (→ EXTRACTED), `VALIDATE` (→ VALIDATED); the decision branch and reconciliation are added by
+  their tasks. The leak check runs inside `EXTRACT`.
+- A stage is a `StageHandler` bean. Every handler bean joins the chain; a stage with no handler
+  ends it, so a document stops in the last state that has one. Until M1.10 the Text handler is a
+  `PlaceholderStageHandler` that writes nothing.
+- `PipelineService.start` enqueues a `StageJob` (JobRunr `JobRequest` holding the document ID and
+  stage only, since JobRunr stores it as JSON and shows it on its dashboard; PII-8).
+  `StageJobHandler` runs it in three transactions, each first locking the document row
+  (`FOR NO KEY UPDATE`, so stage outputs' foreign keys don't wait on it): (1) if the document is
+  in the stage's input state and no run of the stage is `RUNNING`, insert the next `stage_run`
+  as `RUNNING`, otherwise skip; (2) call the handler, then mark the run `SUCCEEDED` and move the
+  document to the output state, and enqueue the next stage after commit; (3) on an exception,
+  mark the run `FAILED` and the document `FAILED` with `failed_stage` and `failure_code`
+  (`StageFailedException.code()`, or `UNEXPECTED_ERROR`; only the exception type is logged).
+  Stage failures aren't retried by JobRunr; JobRunr's retries only cover exceptions outside the
+  handler, such as a lost database connection.
+- `PipelineService.reprocess(id, fromStage)` (NFR-5): allowed once the document has reached the
+  stage's input state (for a `FAILED` document, the input state of the stage that failed) and the
+  stage has a handler. In one transaction it marks the runs of that stage and every later stage
+  `SUPERSEDED`, moves the document to the stage's input state and clears any failure; then it
+  enqueues the stage. A run that finishes after being superseded rolls back its outputs. The
+  HTTP endpoint (§8) comes with M4.8.
+- The upload controller starts the pipeline for new (non-duplicate) documents. Ingest can't call
+  the pipeline itself (§4.1). If enqueueing fails after the upload, the document stays in
+  `RECEIVED` until it is reprocessed from `TEXT`.
+
 ### 5.2 Stage summary
 
 | Stage | Module | Input | Output | Spec |
@@ -171,7 +201,8 @@ per-provider rate limiter (semaphore sized from config).
   `blob_ref` row are inserted in one statement (`ON CONFLICT (sha256) DO NOTHING`); losing a
   concurrent race deletes the new blob and returns the winner's ID. Multipart limits: 20 MB
   per file, 100 MB per request (`413` above). M1.3 stops at `RECEIVED`; M1.4 adds the enqueue
-  hook (no-op chain) and M1.10 wires the real Text job.
+  hook (no-op chain, done: `DocumentController` calls `PipelineService.start` for each new
+  document, §5.1) and M1.10 wires the real Text job.
 - Persistence uses Spring's `JdbcClient` until a module needs JPA entities.
 - `GET /api/documents?status=` returns the newest 100 documents as `{id, status}`, optionally
   filtered by status (UC1; paging comes with the review UI). The Gatling simulation calls it.
@@ -406,6 +437,13 @@ All tables have `id UUID`, `created_at`, `updated_at`. JSONB where the shape is 
 
 JobRunr creates and owns its own tables.
 
+`stage_run` (V3, M1.4): `stage` is one of `TEXT`, `PII`, `EXTRACT`, `VALIDATE`; `status` is
+`RUNNING`, `SUCCEEDED`, `FAILED` or `SUPERSEDED`; `ended_at` is null exactly while `RUNNING`;
+`error_code` is set for `FAILED` and kept when a failed run is superseded. `(document_id, stage,
+run_no)` is unique, and a partial unique index allows one `RUNNING` run per document and stage.
+The current output of a stage is that of its latest `SUCCEEDED` run. V3 also limits
+`document.failed_stage` to the same stage names.
+
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
 document.
@@ -506,6 +544,11 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
   that module gets Spring wiring; `pipeline`, `pii` and `llm` are added by the tasks that use
   them.
 - Actuator exposes only `/actuator/health` over HTTP, without details.
+- JobRunr (`jobrunr.*`, M1.4) uses the app's datasource and creates its own tables. The
+  background job server is on in `application.yaml` and off in `application-test.yaml`, so only
+  tests that enable it (`PipelineIT`) run stage jobs. The JobRunr dashboard is off (it would
+  serve on its own port without the app's login), and anonymous usage reporting
+  (`jobrunr.miscellaneous.allow-anonymous-data-usage`) is off.
 
 ### 10.1 Memory budget (NFR-10, 2 GB container)
 

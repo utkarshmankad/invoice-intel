@@ -93,6 +93,8 @@ Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
 
 `application.yaml` already reads the `DB_*` and `S3_*` variables above (architecture.md §10);
 their defaults point at the local compose stack, so on Fly every one of them must be set.
+JobRunr (`jobrunr.*`) needs no extra variables: it uses the same datasource and creates its own
+tables on start (architecture.md §10).
 
 ### 5.2 Draft `fly.toml`
 

@@ -19,7 +19,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 /**
  * Accepts uploaded files (architecture.md §6.1): detects the type from content (ING-3), dedupes by
  * SHA-256 (ING-2), stores the original in the raw bucket (ING-4) and creates the {@code document}
- * row in {@code RECEIVED}. The Text job is enqueued by the pipeline from plan M1.4 on.
+ * row in {@code RECEIVED}. The caller starts the pipeline for new documents (ingest may not depend
+ * on pipeline, §4.1).
  */
 public final class IngestService {
 
