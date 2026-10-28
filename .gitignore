@@ -21,3 +21,6 @@ out/
 
 # Local state of the scheduled milestone runner (docs/runner.md)
 .claude/runner/
+
+# Git worktrees of parallel runner subagents (docs/runner.md §2)
+.claude/worktrees/
