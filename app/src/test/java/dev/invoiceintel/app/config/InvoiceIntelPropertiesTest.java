@@ -19,6 +19,8 @@ class InvoiceIntelPropertiesTest {
               "invoice-intel.storage.endpoint=http://127.0.0.1:9000",
               "invoice-intel.storage.bucket-raw=raw",
               "invoice-intel.storage.bucket-redacted=redacted",
+              "invoice-intel.storage.access-key=not-a-real-key",
+              "invoice-intel.storage.secret-key=not-a-real-secret",
               "invoice-intel.text.dpi=300",
               "invoice-intel.text.ocr-languages=eng,hin",
               "invoice-intel.text.max-concurrent-page-jobs=2");
@@ -66,6 +68,28 @@ class InvoiceIntelPropertiesTest {
     runner
         .withPropertyValues("invoice-intel.storage.bucket-raw= ")
         .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void bind_missingStorageSecretKey_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.storage.secret-key=")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void storageToString_masksAccessKeys() {
+    var storage =
+        new InvoiceIntelProperties.Storage(
+            URI.create("http://127.0.0.1:9000"),
+            "raw",
+            "redacted",
+            "not-a-real-key",
+            "not-a-real-secret");
+
+    assertThat(storage.toString())
+        .contains("raw", "redacted")
+        .doesNotContain("not-a-real-key", "not-a-real-secret");
   }
 
   @Test

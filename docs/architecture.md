@@ -101,6 +101,7 @@ Base package: `dev.invoiceintel.<module>`.
 ```
 common  ◄── everyone
 storage ◄── ingest, text, pii, pipeline, app
+ingest  ◄── app
 text    ◄── pii, pipeline
 pii     ◄── extract, pipeline, app (read-only views)
 extract ◄── pipeline, eval
@@ -161,6 +162,24 @@ per-provider rate limiter (semaphore sized from config).
   `image/jpeg`, `image/png`. Others are rejected with `415`.
 - Raw bytes go to the **raw** bucket under `raw/{documentId}/original.{ext}` (ING-4).
 - Creates the `document` row in `RECEIVED` and enqueues the Text job.
+- Wiring (M1.3, owner decision 2026-10-28): `DocumentController` in `app` takes the multipart
+  parts named `files` and calls `dev.invoiceintel.ingest.IngestService`, which has no web code.
+  Types are checked for every file before anything is stored, so one unsupported file rejects
+  the whole batch (`415` problem detail with `fileIndex` and `detectedType`). The response is
+  a JSON array of `{id, duplicate}` in request order; `duplicate: true` means the bytes were
+  uploaded before (ING-2). The original is stored first, then `document` and its ORIGINAL
+  `blob_ref` row are inserted in one statement (`ON CONFLICT (sha256) DO NOTHING`); losing a
+  concurrent race deletes the new blob and returns the winner's ID. Multipart limits: 20 MB
+  per file, 100 MB per request (`413` above). M1.3 stops at `RECEIVED`; M1.4 adds the enqueue
+  hook (no-op chain) and M1.10 wires the real Text job.
+- Persistence uses Spring's `JdbcClient` until a module needs JPA entities.
+- `GET /api/documents?status=` returns the newest 100 documents as `{id, status}`, optionally
+  filtered by status (UC1; paging comes with the review UI). The Gatling simulation calls it.
+- `GET /api/documents/{id}` returns `{id, status}` from `IngestService.find` (M1.3, so the smoke
+  test can poll it); unknown IDs get a `404` problem detail. UC2's decision and extraction
+  fields are added when those stages exist.
+- `SPRING_ENDPOINT` (FindSecBugs inventory marker, not a defect) is suppressed per controller
+  with `@SuppressFBWarnings` and a justification (owner decision 2026-10-28).
 
 ### 6.2 Text (`text`)
 
@@ -387,6 +406,10 @@ All tables have `id UUID`, `created_at`, `updated_at`. JSONB where the shape is 
 
 JobRunr creates and owns its own tables.
 
+`blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
+`PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
+document.
+
 Flyway migrations live in `app/src/main/resources/db/migration` (`V{n}__{description}.sql`)
 and run on app start. `document.status` has a `CHECK` listing the states of §5.1, so adding a
 state needs a migration; `failed_stage`/`failure_code` are set exactly when status is `FAILED`.
@@ -435,8 +458,10 @@ pair `blob_ref` stores. Keys are validated: relative, no empty or `.`/`..` segme
 `S3BlobStore` implements it on an injected AWS SDK v2 `S3Client` (sync, Apache HTTP client;
 the Netty async transport is excluded) and wraps SDK errors in `BlobStoreException`, whose
 message names only the operation and bucket (PII-8). The integration test runs against the
-same `chrislusf/seaweedfs:4.51` image as compose (M1.2). Building the `S3Client` from
-`invoice-intel.storage.*` is Spring wiring added by the first task that writes blobs (M1.3).
+same `chrislusf/seaweedfs:4.51` image as compose (M1.2). `app.config.StorageConfiguration`
+builds the `S3Client` from `invoice-intel.storage.*` (M1.3): endpoint override, path-style
+addressing, region `us-east-1` (ignored by SeaweedFS, an alias of `auto` on R2), static
+credentials from `access-key`/`secret-key`.
 
 ### 9.2 Files in the repo
 
@@ -467,8 +492,9 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 
 - Shared settings are in `app/src/main/resources/application.yaml`; each value that differs
   per environment reads an environment variable (`DB_URL`, `DB_USER`, `DB_PASSWORD`,
-  `S3_ENDPOINT`, `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED`; NFR-12) with a default that points at
-  the local compose stack. Defaults are never secrets; credentials default to empty.
+  `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED`;
+  NFR-12) with a default that points at the local compose stack. Defaults are never secrets;
+  credentials default to empty, and blank S3 keys fail start-up like the admin password.
 - `application-local.yaml` binds the server to `127.0.0.1` and imports the git-ignored `.env`
   from the repository root (`spring.config.import: optional:file:.env[.properties]`; `bootRun`
   runs in the root). `.env` is read as a properties file, so values are unquoted `KEY=value`.
