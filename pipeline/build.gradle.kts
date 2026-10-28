@@ -8,5 +8,9 @@ dependencies {
     api(libs.jobrunr)
     // PipelineService takes a JdbcClient and a transaction manager; app supplies both.
     api(libs.spring.jdbc)
+    // TextStageHandler reads originals from object storage; app passes the BlobStore.
+    api(project(":storage"))
+    // The Text stage handler wires the text module (TXT-1..4, architecture.md §5.2).
+    implementation(project(":text"))
     implementation(libs.slf4j.api)
 }

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -57,12 +58,15 @@ public record InvoiceIntelProperties(
   }
 
   /**
-   * Text stage (TXT-2). {@code maxConcurrentPageJobs} caps concurrent render/OCR work to keep the
-   * heap inside the 2 GB budget (architecture.md §10.1).
+   * Text stage (TXT-1, TXT-2). {@code tessdataPath} holds the Tesseract language files; {@code
+   * minTextChars} is the text a PDF page needs to skip OCR; {@code maxConcurrentPageJobs} caps
+   * concurrent render/OCR work to keep the heap inside the 2 GB budget (architecture.md §10.1).
    */
   public record Text(
       @Min(72) @Max(600) int dpi,
       @NotEmpty List<@NotBlank String> ocrLanguages,
+      @NotNull Path tessdataPath,
+      @Positive int minTextChars,
       @Positive int maxConcurrentPageJobs) {
 
     public Text {

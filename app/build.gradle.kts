@@ -36,9 +36,28 @@ dependencies {
     "integrationTestImplementation"(testFixtures(project(":common")))
     // Waits for stage jobs in pipeline tests (testing.md: no sleeps).
     "integrationTestImplementation"(libs.awaitility)
+    // Builds image-only (scanned) PDFs for the Text stage test.
+    "integrationTestImplementation"(libs.pdfbox)
 }
 
 // `local` reads .env from the repository root (application-local.yaml).
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     workingDir = rootDir
+}
+
+// The Text stage calls the system Tesseract through JNA (architecture.md §6.2). JNA doesn't search
+// Homebrew's folders and Homebrew keeps the language data elsewhere than the container image;
+// CI (Linux) uses the defaults.
+val homebrewLib = file("/opt/homebrew/lib")
+val homebrewTessdata = file("/opt/homebrew/share/tessdata")
+if (homebrewLib.isDirectory) {
+    tasks.withType<Test>().configureEach {
+        systemProperty("jna.library.path", homebrewLib.absolutePath)
+        if (homebrewTessdata.isDirectory) {
+            systemProperty("invoice-intel.text.tessdata-path", homebrewTessdata.absolutePath)
+        }
+    }
+    tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+        systemProperty("jna.library.path", homebrewLib.absolutePath)
+    }
 }

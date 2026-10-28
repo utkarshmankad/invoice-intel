@@ -3,6 +3,7 @@ package dev.invoiceintel.app.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -23,6 +24,8 @@ class InvoiceIntelPropertiesTest {
               "invoice-intel.storage.secret-key=not-a-real-secret",
               "invoice-intel.text.dpi=300",
               "invoice-intel.text.ocr-languages=eng,hin",
+              "invoice-intel.text.tessdata-path=/usr/share/tesseract-ocr/5/tessdata",
+              "invoice-intel.text.min-text-chars=20",
               "invoice-intel.text.max-concurrent-page-jobs=2");
 
   @Test
@@ -39,6 +42,9 @@ class InvoiceIntelPropertiesTest {
           assertThat(properties.text().dpi()).isEqualTo(300);
           assertThat(properties.text().ocrLanguages()).containsExactly("eng", "hin");
           assertThat(properties.text().maxConcurrentPageJobs()).isEqualTo(2);
+          assertThat(properties.text().tessdataPath())
+              .isEqualTo(Path.of("/usr/share/tesseract-ocr/5/tessdata"));
+          assertThat(properties.text().minTextChars()).isEqualTo(20);
         });
   }
 
@@ -110,4 +116,11 @@ class InvoiceIntelPropertiesTest {
   @Configuration(proxyBeanMethods = false)
   @EnableConfigurationProperties(InvoiceIntelProperties.class)
   static class PropertiesConfig {}
+
+  @Test
+  void bind_zeroMinTextChars_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.text.min-text-chars=0")
+        .run(context -> assertThat(context).hasFailed());
+  }
 }

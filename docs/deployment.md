@@ -95,6 +95,9 @@ Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
 their defaults point at the local compose stack, so on Fly every one of them must be set.
 JobRunr (`jobrunr.*`) needs no extra variables: it uses the same datasource and creates its own
 tables on start (architecture.md §10).
+The Text stage's `TESSDATA_PATH` defaults to the image's Tesseract data
+(`/usr/share/tesseract-ocr/5/tessdata`), so it needs no setting on Fly. The image starts Java
+with `--enable-native-access=ALL-UNNAMED` for Tess4J and OpenCV (M1.10).
 
 ### 5.2 Draft `fly.toml`
 

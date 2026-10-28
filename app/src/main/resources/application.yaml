@@ -32,6 +32,9 @@ invoice-intel:
   text:
     dpi: 300
     ocr-languages: [eng]
+    # Debian/Ubuntu tesseract-ocr package, as in the container image (Dockerfile).
+    tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
+    min-text-chars: 20
     max-concurrent-page-jobs: 2
 
 # Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its

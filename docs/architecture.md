@@ -141,8 +141,8 @@ Implementation (M1.4), in `pipeline`:
   (→ EXTRACTED), `VALIDATE` (→ VALIDATED); the decision branch and reconciliation are added by
   their tasks. The leak check runs inside `EXTRACT`.
 - A stage is a `StageHandler` bean. Every handler bean joins the chain; a stage with no handler
-  ends it, so a document stops in the last state that has one. Until M1.10 the Text handler is a
-  `PlaceholderStageHandler` that writes nothing.
+  ends it, so a document stops in the last state that has one. Since M1.10 the Text handler is
+  `TextStageHandler` (§6.2); `PlaceholderStageHandler` remains for tests of stages not built yet.
 - `PipelineService.start` enqueues a `StageJob` (JobRunr `JobRequest` holding the document ID and
   stage only, since JobRunr stores it as JSON and shows it on its dashboard; PII-8).
   `StageJobHandler` runs it in three transactions, each first locking the document row
@@ -234,7 +234,7 @@ page's unit, which for `PDF_TEXT` is PDF points (1/72 in) from the top left of t
 (OCR pages use rendered-image pixels, M1.8). PDF words have `confidence` 1. `PdfTextExtractor`
 groups PDFBox `TextPosition`s (sorted by position) into words at whitespace and text-run ends;
 `hasTextLayer(page)` is true from `minTextChars` non-whitespace characters on (default 20;
-moves to `invoice-intel.text.*` when the Text job is wired, M1.10). Unreadable PDFs raise
+`invoice-intel.text.min-text-chars` since M1.10). Unreadable PDFs raise
 `TextExtractionException` with a content-free message.
 
 Page images (PNG) are stored under `raw/{documentId}/pages/{n}.png` for the vision
@@ -243,8 +243,7 @@ Implementation (M1.6): `PageRenderer` renders each PDF page with PDFBox at the c
 (default 300, `invoice-intel.text.dpi`) as RGB and encodes it to PNG, one page at a time: each
 PNG goes to a callback before the next page is rendered, so one page bitmap is on the heap per
 call (§10.1). `PageImageStore` writes each PNG to the raw bucket, then upserts its `PAGE_IMAGE`
-`blob_ref` row (`ON CONFLICT (bucket, key)`), so re-running keeps one row per page. Capping
-concurrent render/OCR jobs with `max-concurrent-page-jobs` comes with the Text job (M1.10).
+`blob_ref` row (`ON CONFLICT (bucket, key)`), so re-running keeps one row per page. Concurrent render/OCR work is capped by `max-concurrent-page-jobs` in the Text job (M1.10).
 Implementation (M1.7): `ImagePreprocessor.preprocess` (OpenCV via `org.openpnp:opencv` 4.9.0-0,
 native library loaded once by `OpenCvLoader`) decodes the image as grayscale, deskews it, applies a
 Gaussian adaptive threshold (block 31, offset 15) and a 3×3 median denoise, and returns a
@@ -257,7 +256,7 @@ Implementation (M1.8): `TesseractOcr.ocr(pageNo, image)` runs Tess4J 5.20.0 (sys
 through JNA) at word level and returns a `TextPage` with `source: OCR`, the image size and pixel
 boxes, and confidences scaled to 0–1. It creates a `Tesseract` instance per call because instances
 aren't thread-safe. Languages join with `+` (`invoice-intel.text.ocr-languages`). The tessdata
-folder is a constructor argument; a config key for it comes with the Text job (M1.10). Tests point JNA at `/opt/homebrew/lib` when it exists.
+folder is a constructor argument, set from `invoice-intel.text.tessdata-path` (M1.10). Tests point JNA at `/opt/homebrew/lib` when it exists.
 
 **Classification (TXT-4)** is rule-based at this stage, because no LLM may see the
 document before PII removal: keyword and pattern scoring ("Tax Invoice", "Credit Note",
@@ -275,6 +274,26 @@ without GST markers (2) and "Retail Invoice" (1). The document date is the one l
 latest date in the text. The highest score of at least 3 wins (ties: credit note, bill of supply,
 pre-GST, tax invoice); otherwise `OTHER`. Phrases match with any spacing so OCR'd text classifies
 the same; tests cover every fixture type through both the PDF text layer and OCR.
+
+**Text job (M1.10).** `TextStageHandler` (`pipeline`, the `TEXT` stage of §5.1) reads the
+document's MIME type and `ORIGINAL` `blob_ref`, loads the original from the raw bucket and calls
+`DocumentTextService` (`text`):
+- PDF: the text layer comes from `PdfTextExtractor`; every page is rendered and stored as a page
+  image, and a page without a text layer (`min-text-chars`) is preprocessed (TXT-3) and OCR'd
+  while its PNG is still in hand, replacing that page with the OCR page.
+- JPEG/PNG: the image is re-encoded as PNG (which also drops embedded metadata such as EXIF),
+  stored as page 1 and OCR'd.
+- OCR boxes are in pixels of the preprocessed (deskewed, binarized) image, not of the stored page
+  image; they differ only by the corrected skew.
+- At most `max-concurrent-page-jobs` documents render or OCR at once (a fair semaphore, §10.1).
+  OpenCV's native library loads on the first OCR page, so start-up and digital PDFs don't need it.
+
+The handler then inserts the `text_layer` row for the run (`TextLayerStore`, `TextLayer` as
+JSONB via Jackson), classifies the layer and sets `document.document_class`. All of it runs in
+the stage transaction (§5.1), so a failed run, or one superseded while running, leaves no outputs. Failure codes:
+`ORIGINAL_MISSING` (no `ORIGINAL` row or object) and `TEXT_EXTRACTION_FAILED` (unreadable PDF or
+image, or OCR error). The module boundary (§4.1) keeps `text` types out of `app`:
+`PipelineConfiguration` passes plain settings (`TextStageHandler.Settings`).
 
 ### 6.3 PII (`pii`)
 
@@ -477,6 +496,11 @@ All tables have `id UUID`, `created_at`, `updated_at`. JSONB where the shape is 
 
 JobRunr creates and owns its own tables.
 
+`text_layer` (V4, M1.10): one row per Text run, unique `(document_id, run_no)`; `layer` is the
+`TextLayer` JSON of §6.2. The current layer is the one of the latest `SUCCEEDED` Text run; the
+pipeline reads it with `TextLayerStore.latest` (highest `run_no`: a failed run, or one superseded
+while running, rolls its insert back with the stage transaction).
+
 `stage_run` (V3, M1.4): `stage` is one of `TEXT`, `PII`, `EXTRACT`, `VALIDATE`; `status` is
 `RUNNING`, `SUCCEEDED`, `FAILED` or `SUPERSEDED`; `ended_at` is null exactly while `RUNNING`;
 `error_code` is set for `FAILED` and kept when a failed run is superseded. `(document_id, stage,
@@ -566,13 +590,18 @@ for PII evaluation.
 
 Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 `pipeline.*` (thresholds, concurrency), `pii.*` (detector toggles, mode), `llm.models[]`,
-`storage.*`, `text.*` (DPI, OCR languages).
+`storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
+`max-concurrent-page-jobs`).
 
 - Shared settings are in `app/src/main/resources/application.yaml`; each value that differs
   per environment reads an environment variable (`DB_URL`, `DB_USER`, `DB_PASSWORD`,
   `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED`;
   NFR-12) with a default that points at the local compose stack. Defaults are never secrets;
   credentials default to empty, and blank S3 keys fail start-up like the admin password.
+- `invoice-intel.text.tessdata-path` reads `TESSDATA_PATH`, default
+  `/usr/share/tesseract-ocr/5/tessdata` (the container image and CI's Ubuntu package);
+  `application-local.yaml` defaults it to Homebrew's `/opt/homebrew/share/tessdata`. Gradle sets
+  `jna.library.path` to `/opt/homebrew/lib` for tests and `bootRun` when that folder exists.
 - `application-local.yaml` binds the server to `127.0.0.1` and imports the git-ignored `.env`
   from the repository root (`spring.config.import: optional:file:.env[.properties]`; `bootRun`
   runs in the root). `.env` is read as a properties file, so values are unquoted `KEY=value`.

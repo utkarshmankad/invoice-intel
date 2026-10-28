@@ -337,8 +337,7 @@ jobs:
       - name: Run smoke checks
         env:
           # Accepted end states narrow as the pipeline grows; plan M4.7 sets AUTO_APPROVED,NEEDS_REVIEW.
-          # RECEIVED is accepted only until M1.10 wires the Text job (owner decision 2026-10-28).
-          SMOKE_EXPECT_STATUSES: RECEIVED,TEXT_READY,PII_CLEAN,EXTRACTED,VALIDATED,AUTO_APPROVED,NEEDS_REVIEW
+          SMOKE_EXPECT_STATUSES: TEXT_READY,PII_CLEAN,EXTRACTED,VALIDATED,AUTO_APPROVED,NEEDS_REVIEW
         run: scripts/ci/smoke-test.sh http://127.0.0.1:8080
       - name: Collect logs
         if: always()

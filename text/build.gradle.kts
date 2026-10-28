@@ -19,6 +19,9 @@ dependencies {
         exclude(group = "org.apache.pdfbox", module = "pdfbox-tools")
     }
 
+    // TextLayer is stored as JSONB (architecture.md §6.2, §7); Jackson 3 comes with Spring Boot.
+    implementation(libs.jackson.databind)
+
     testImplementation(testFixtures(project(":common")))
 }
 
