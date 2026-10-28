@@ -34,9 +34,14 @@ jobs:
       has_build: ${{ steps.check.outputs.has_build }}
       has_dockerfile: ${{ steps.check.outputs.has_dockerfile }}
       has_perf: ${{ steps.check.outputs.has_perf }}
+      docs_only: ${{ steps.check.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # docs_only diffs the PR against its base commit
       - id: check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           has() { [ -e "$1" ] && echo true || echo false; }
           {
@@ -44,6 +49,17 @@ jobs:
             echo "has_dockerfile=$(has Dockerfile)"
             echo "has_perf=$(has perf/build.gradle.kts)"
           } >> "$GITHUB_OUTPUT"
+          # docs_only: a PR that changes only docs/** or Markdown files (docs/ci.md §2).
+          # Pushes to main always count as code changes.
+          docs_only=false
+          if [ -n "$BASE_SHA" ]; then
+            changed="$(git diff --name-only "$BASE_SHA" HEAD)"
+            if [ -n "$changed" ] && ! grep -qvE '^docs/|\.md$' <<<"$changed"; then
+              docs_only=true
+              echo "::notice::Docs-only change: the performance test is skipped."
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           [ -e settings.gradle.kts ] || echo "::notice::No Gradle build yet (before plan M0.2): build, test and runtime gates are skipped."
 
   pr-hygiene:
@@ -335,7 +351,7 @@ jobs:
   performance:
     name: Performance test
     needs: [detect, smoke]
-    if: needs.detect.outputs.has_perf == 'true'
+    if: needs.detect.outputs.has_perf == 'true' && needs.detect.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
