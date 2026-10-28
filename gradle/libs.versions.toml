@@ -43,6 +43,7 @@ aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "aws-sdk" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
 testcontainers = { module = "org.testcontainers:testcontainers" }
 spring-jdbc = { module = "org.springframework:spring-jdbc" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind" }
 tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 opencv = { module = "org.openpnp:opencv", version.ref = "opencv" }

@@ -5,7 +5,7 @@ import java.util.Objects;
 
 /**
  * A stage that writes nothing and always succeeds, so the state machine runs end to end before the
- * real stage exists (plan M1.4). The Text placeholder is replaced by the Text job in plan M1.10.
+ * real stage exists (plan M1.4). Tests use it for stages that don't exist yet.
  */
 public final class PlaceholderStageHandler implements StageHandler {
 

@@ -3,10 +3,11 @@ package dev.invoiceintel.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
 
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.pipeline.PipelineService;
@@ -14,10 +15,12 @@ import dev.invoiceintel.pipeline.PlaceholderStageHandler;
 import dev.invoiceintel.pipeline.ReprocessNotAllowedException;
 import dev.invoiceintel.pipeline.Stage;
 import dev.invoiceintel.pipeline.StageFailedException;
+import dev.invoiceintel.pipeline.TextStageHandler;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,8 +32,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
- * The stage chain on Postgres with a running JobRunr server (architecture.md §5.1, NFR-5). Text and
- * PII are placeholder stages, so a document should walk RECEIVED → TEXT_READY → PII_CLEAN.
+ * The stage chain on Postgres with a running JobRunr server (architecture.md §5.1, NFR-5). The Text
+ * handler is stubbed to do nothing and PII is a placeholder, so a document without an original
+ * walks RECEIVED → TEXT_READY → PII_CLEAN. The real Text stage is covered by {@link TextStageIT}.
  */
 @SpringBootTest(
     properties = {
@@ -51,7 +55,12 @@ class PipelineIT {
   @Autowired JdbcClient jdbc;
 
   @MockitoSpyBean(name = "textStage")
-  PlaceholderStageHandler textStage;
+  TextStageHandler textStage;
+
+  @BeforeEach
+  void stubTextStage() {
+    doNothing().when(textStage).run(any(), anyInt());
+  }
 
   @Test
   void start_placeholderStages_advanceDocumentThroughChain() {
@@ -128,7 +137,7 @@ class PipelineIT {
     assertThatThrownBy(() -> pipeline.reprocess(id, Stage.PII))
         .isInstanceOf(ReprocessNotAllowedException.class);
 
-    reset(textStage);
+    doNothing().when(textStage).run(eq(id), anyInt());
     assertThat(pipeline.reprocess(id, Stage.TEXT)).isTrue();
 
     awaitStatus(id, "PII_CLEAN");

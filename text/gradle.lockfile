@@ -2,6 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :text:dependencies --write-locks
+com.fasterxml.jackson.core:jackson-annotations:2.21=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.jai-imageio:jai-imageio-core:1.4.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.spotbugs:spotbugs-annotations:4.10.5=spotbugs
 com.github.spotbugs:spotbugs:4.10.5=spotbugs
@@ -98,4 +99,7 @@ software.amazon.awssdk:third-party-jackson-core:2.56.0=compileClasspath,integrat
 software.amazon.awssdk:utils-lite:2.56.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 software.amazon.awssdk:utils:2.56.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 software.amazon.eventstream:eventstream:1.0.1=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson.core:jackson-core:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson.core:jackson-databind:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson:jackson-bom:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 empty=annotationProcessor,integrationTestAnnotationProcessor,testAnnotationProcessor

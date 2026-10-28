@@ -6,3 +6,8 @@ spring:
 
 server:
   address: 127.0.0.1
+
+# Homebrew's Tesseract (`brew install tesseract`); override with TESSDATA_PATH.
+invoice-intel:
+  text:
+    tessdata-path: ${TESSDATA_PATH:/opt/homebrew/share/tessdata}

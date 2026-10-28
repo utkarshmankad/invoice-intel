@@ -1,10 +1,10 @@
 package dev.invoiceintel.app.config;
 
 import dev.invoiceintel.pipeline.PipelineService;
-import dev.invoiceintel.pipeline.PlaceholderStageHandler;
-import dev.invoiceintel.pipeline.Stage;
 import dev.invoiceintel.pipeline.StageHandler;
 import dev.invoiceintel.pipeline.StageJobHandler;
+import dev.invoiceintel.pipeline.TextStageHandler;
+import dev.invoiceintel.storage.BlobStore;
 import java.util.List;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.springframework.context.annotation.Bean;
@@ -19,10 +19,21 @@ import org.springframework.transaction.PlatformTransactionManager;
 @Configuration(proxyBeanMethods = false)
 public class PipelineConfiguration {
 
-  /** No-op Text stage until the Text job lands (plan M1.10). */
+  /** Text stage: text layer, page images and class hint (architecture.md §5.2, §6.2). */
   @Bean
-  PlaceholderStageHandler textStage() {
-    return new PlaceholderStageHandler(Stage.TEXT);
+  TextStageHandler textStage(
+      BlobStore blobStore, JdbcClient jdbc, InvoiceIntelProperties properties) {
+    var text = properties.text();
+    return new TextStageHandler(
+        blobStore,
+        jdbc,
+        new TextStageHandler.Settings(
+            properties.storage().bucketRaw(),
+            text.dpi(),
+            text.ocrLanguages(),
+            text.tessdataPath(),
+            text.minTextChars(),
+            text.maxConcurrentPageJobs()));
   }
 
   @Bean

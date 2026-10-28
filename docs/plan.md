@@ -87,7 +87,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M1.7** · `text`: OpenCV preprocessing (grayscale, deskew, threshold, denoise) · *TXT-3* · **Done when** skewed synthetic scan is deskewed within ±1°. Done 2026-10-28: `ImagePreprocessor` (architecture §6.2).
 - [x] **M1.8** · `text`: Tess4J OCR to the common `TextLayer` format · *TXT-1, TXT-2* · **Done when** rasterised fixture OCRs with ≥ 95% word match. Done 2026-10-28: `TesseractOcr` (architecture §6.2).
 - [x] **M1.9** · `text`: rule-based document classifier · *TXT-4, ADR-09* · **Done when** all fixture types classified correctly. Done 2026-10-28: `DocumentClassifier`, `DocumentClass` in `common` (architecture §6.2).
-- [ ] **M1.10** · Text stage job wired into the pipeline · *§5.2* · **Done when** uploaded fixture reaches TEXT_READY with a stored text layer. Also remove `RECEIVED` from `SMOKE_EXPECT_STATUSES` in `ci.yml` (accepted since M1.3, owner decision 2026-10-28).
+- [x] **M1.10** · Text stage job wired into the pipeline · *§5.2* · **Done when** uploaded fixture reaches TEXT_READY with a stored text layer. Also remove `RECEIVED` from `SMOKE_EXPECT_STATUSES` in `ci.yml` (accepted since M1.3, owner decision 2026-10-28). Done 2026-10-28: `TextStageHandler`, `DocumentTextService`, V4 `text_layer` (architecture §6.2, §7).
 
 ---
 
@@ -198,10 +198,11 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] Until M1.10 the placeholder Text stage moves uploads to `TEXT_READY` without a text layer; after M1.10, reprocess those documents from `TEXT` (or clear the local database) · found in M1.4
 - [ ] The JobRunr dashboard is off: it serves on its own port (8000) without the app's login. Decide whether to enable it for `local` only, bound to `127.0.0.1` with its own credentials from `.env` · found in M1.4
 - [ ] Stage job concurrency uses JobRunr's default worker count; size it from `invoice-intel.pipeline.*` (architecture §5.2, §10.1) when render/OCR stages arrive (M1.6–M1.8) · found in M1.4
-- [ ] Image uploads (JPEG/PNG) have no page image yet: `PageImageStore` renders PDFs only. The Text job (M1.10) should store the image itself as page 1 (normalised to PNG, "images used as-is", §6.2) · found in M1.6
-- [ ] OpenCV loads its bundled native library (`OpenCvLoader`) only in unit tests so far. When the Text job is wired (M1.10), check it loads in the container image (temp dir writable, platform in the jar) and that the app runs with `--enable-native-access=ALL-UNNAMED` (ADR-01) · found in M1.7
-- [ ] `TesseractOcr` takes the tessdata folder as a constructor argument. The Text job (M1.10) needs a config key for it (e.g. `invoice-intel.text.tessdata-path`, default `/usr/share/tesseract-ocr/5/tessdata` in the container, Homebrew path for `local`) in architecture §10 and deployment.md · found in M1.8
-- [ ] The Text job (M1.10) should store `DocumentClassifier`'s result in `document.document_class` (column from V1, architecture §5.2, §7) · found in M1.9
+- [x] Image uploads (JPEG/PNG) have no page image yet: `PageImageStore` renders PDFs only. The Text job (M1.10) should store the image itself as page 1 (normalised to PNG, "images used as-is", §6.2) · found in M1.6 · resolved in M1.10
+- [ ] OpenCV loads its bundled native library (`OpenCvLoader`) only in tests so far. M1.10 added `--enable-native-access=ALL-UNNAMED` to the image's `java` command and loads OpenCV only on the first OCR page, but no CI check OCRs inside the container (the smoke fixture is a digital PDF). Add a scanned smoke fixture or a container check that the temp dir is writable and the native library loads · found in M1.7, narrowed in M1.10
+- [ ] `LogContext.close()` removes its keys even when an outer context set them, so `PageImageStore`'s nested `LogContext.forDocument` drops `documentId` from the Text stage's later log lines. Make `LogContext` restore the previous MDC values (common) · found in M1.10
+- [x] `TesseractOcr` takes the tessdata folder as a constructor argument. The Text job (M1.10) needs a config key for it (e.g. `invoice-intel.text.tessdata-path`, default `/usr/share/tesseract-ocr/5/tessdata` in the container, Homebrew path for `local`) in architecture §10 and deployment.md · found in M1.8 · resolved in M1.10: `invoice-intel.text.tessdata-path` (`TESSDATA_PATH`)
+- [x] The Text job (M1.10) should store `DocumentClassifier`'s result in `document.document_class` (column from V1, architecture §5.2, §7) · found in M1.9 · resolved in M1.10
 - [ ] `scripts/ci/perf-summary.sh` looks for `js/stats.json`, which Gatling 3.16 reports no longer contain, so the job summary always says "No Gatling stats found"; read `simulation.log` or the HTML report instead (the assertions still gate) · found in M0.15
 
 ---

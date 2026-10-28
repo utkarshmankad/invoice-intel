@@ -50,4 +50,5 @@ EXPOSE 8080
 
 # Memory budget for the 2 GB container (§10.1, NFR-10); override via JAVA_TOOL_OPTIONS.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError"
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+# Tess4J (JNA) and OpenCV load native libraries (ADR-01, architecture.md §6.2).
+ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "org.springframework.boot.loader.launch.JarLauncher"]
