@@ -228,6 +228,15 @@ minimum number of non-whitespace characters (configurable) (TXT-1).
 pages[]: { pageNo, width, height, source: PDF_TEXT|OCR,
            words[]: { text, x, y, w, h, confidence } }
 ```
+Implementation (M1.5): `TextLayer`, `TextPage`, `Word` and `TextSource` are records/enums in
+`dev.invoiceintel.text`. `pageNo` is 1-based; boxes are top-left `x`, `y` plus `w`, `h` in the
+page's unit, which for `PDF_TEXT` is PDF points (1/72 in) from the top left of the crop box
+(OCR pages use rendered-image pixels, M1.8). PDF words have `confidence` 1. `PdfTextExtractor`
+groups PDFBox `TextPosition`s (sorted by position) into words at whitespace and text-run ends;
+`hasTextLayer(page)` is true from `minTextChars` non-whitespace characters on (default 20;
+moves to `invoice-intel.text.*` when the Text job is wired, M1.10). Unreadable PDFs raise
+`TextExtractionException` with a content-free message.
+
 Page images (PNG) are stored under `raw/{documentId}/pages/{n}.png` for the vision
 strategy and review UI. They contain PII and live in the raw bucket only.
 
