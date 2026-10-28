@@ -429,6 +429,15 @@ Both buckets are private. Locally they are two SeaweedFS buckets, created by the
 `seaweedfs-init` service in `compose.yaml`; names come from `S3_BUCKET_RAW` and
 `S3_BUCKET_REDACTED` (defaults `raw`, `redacted`).
 
+Access goes through `dev.invoiceintel.storage.BlobStore` (`put`, `get` → `Optional<byte[]>`,
+`delete`; deleting a missing object is a no-op) addressed by `BlobKey(bucket, key)`, the same
+pair `blob_ref` stores. Keys are validated: relative, no empty or `.`/`..` segments.
+`S3BlobStore` implements it on an injected AWS SDK v2 `S3Client` (sync, Apache HTTP client;
+the Netty async transport is excluded) and wraps SDK errors in `BlobStoreException`, whose
+message names only the operation and bucket (PII-8). The integration test runs against the
+same `chrislusf/seaweedfs:4.51` image as compose (M1.2). Building the `S3Client` from
+`invoice-intel.storage.*` is Spring wiring added by the first task that writes blobs (M1.3).
+
 ### 9.2 Files in the repo
 
 ```
