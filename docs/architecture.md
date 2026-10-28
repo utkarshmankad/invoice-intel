@@ -318,6 +318,29 @@ Seller-side values (seller name, seller GSTIN/PAN/address) are excluded by posit
 `SpanMerger` unions overlapping spans, keeps the most specific type, and expands spans to
 whole words. Bias is toward recall (spec §6.3).
 
+Implementation (M2.1): `PiiDetector`, `PiiSpan`, `PiiType`, `PageText` and `DocumentContext`
+are in `dev.invoiceintel.pii`. `PageText` is a page's words joined by single spaces in
+text-layer order; a `PiiSpan` is `pageNo`, character `[start, end)` in that text, `type` and
+`detector` (rule name), with no value, so it is safe to store as a `pii_span` row and log.
+`PageText.wordsIn(start, end)` maps a span back to words and boxes for redaction.
+`DocumentContext` holds the `DocumentId` for now; seller-block tagging (M2.3) extends it.
+`RegexDetector` runs one rule per pattern (`regex:email`, `regex:mobile`, `regex:landline`,
+`regex:pin-*`, `regex:pan`, `regex:order-*`, `regex:invoice-label`); spans of different rules
+may overlap or repeat until `SpanMerger` (M2.4). Rules worth knowing:
+- Phones: mobiles with optional `+91`/`91`/`0` and a 5+5 split; landlines `0` or `+91`, then a
+  2-4 digit STD code, ten digits in all.
+- PIN codes need context, because a bare six-digit number is as likely an HSN code: a PIN label,
+  a state/UT name before it (`IndianStates`, longest name first), the PIN after such a PIN (the
+  buyer column of a two-column seller | buyer layout), or `City-PIN`. PINs inside the buyer
+  address block without such context are left to `AddressBlockDetector` (M2.3).
+- PAN: ten characters, fourth letter a holder type; inside a GSTIN it isn't matched (GSTIN and
+  Aadhaar need checksums, M2.2).
+- Order numbers: the marketplace `NNN-NNNNNNN-NNNNNNN` form, or any code with a digit after an
+  "Order Number/No/ID/#" label. Invoice numbers: a code with a digit after an "Invoice",
+  "Credit Note", "Debit Note" or "Bill" number label.
+- Seller values (seller PAN, seller PIN, a pre-GST seller TIN that looks like a landline) are
+  found too; seller-block tagging (M2.3) removes them. Patterns avoid nested quantifiers (ReDoS).
+
 #### Tokens and vault (PII-3, PII-7)
 
 - **Token generation:** `token = TYPE + "_" + base32(HMAC-SHA256(tokenKey, normalized(value)))[0..8]`.
