@@ -59,6 +59,7 @@ architecture.md §4.1 doesn't allow.
 ## Commands (once the skeleton exists)
 
 ```bash
+make up run                                                  # stack + app (Makefile: up, run, test, down)
 docker compose up -d                                         # Postgres + SeaweedFS (S3) on 127.0.0.1
 ./gradlew build                                              # compile + all tests
 ./gradlew :app:bootRun --args='--spring.profiles.active=local'
