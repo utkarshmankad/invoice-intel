@@ -131,7 +131,9 @@ jobs:
     name: Unit tests
     needs: detect
     if: needs.detect.outputs.has_build == 'true'
-    runs-on: ubuntu-latest
+    # Tess4J 5.20 needs Tesseract 5.5 / Leptonica >= 1.83; noble ships 5.3 / 1.82. 26.04 (resolute)
+    # matches the Dockerfile's base image.
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -140,12 +142,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Install Tesseract
-        # Lept4j (via Tess4J) loads "leptonica"; Ubuntu noble's Leptonica 1.82 still ships it as
-        # liblept.so.5 (renamed upstream in 1.83, as in the Dockerfile's base), so add the alias.
-        run: |
-          sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
-          lib=/usr/lib/x86_64-linux-gnu
-          [ -e "$lib/libleptonica.so" ] || sudo ln -s "$lib/liblept.so.5" "$lib/libleptonica.so"
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
       - name: Run unit tests (incl. ArchUnit)
         run: ./gradlew test jacocoUnitReport --no-daemon
       - name: Unit coverage summary
@@ -168,7 +165,9 @@ jobs:
     name: Integration tests
     needs: detect
     if: needs.detect.outputs.has_build == 'true'
-    runs-on: ubuntu-latest
+    # Tess4J 5.20 needs Tesseract 5.5 / Leptonica >= 1.83; noble ships 5.3 / 1.82. 26.04 (resolute)
+    # matches the Dockerfile's base image.
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -177,12 +176,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Install Tesseract
-        # Lept4j (via Tess4J) loads "leptonica"; Ubuntu noble's Leptonica 1.82 still ships it as
-        # liblept.so.5 (renamed upstream in 1.83, as in the Dockerfile's base), so add the alias.
-        run: |
-          sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
-          lib=/usr/lib/x86_64-linux-gnu
-          [ -e "$lib/libleptonica.so" ] || sudo ln -s "$lib/liblept.so.5" "$lib/libleptonica.so"
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
       - name: Run integration tests (Testcontainers, WireMock LLM stubs)
         run: ./gradlew integrationTest jacocoIntegrationReport --no-daemon
       - name: Integration coverage summary
