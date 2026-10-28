@@ -13,7 +13,11 @@ dependencies {
     // Deskew, binarize and denoise before OCR (TXT-3); bundles native libs per platform.
     implementation(libs.opencv)
     // OCR words with boxes and confidences (TXT-1, TXT-2, ADR-10); uses the system Tesseract.
-    implementation(libs.tess4j)
+    // pdfbox-tools only serves Tess4J's PDF-to-image helpers, which we don't use (PageRenderer
+    // renders pages); it drags in pdfbox-debugger and Bouncy Castle 1.84 (GHSA-9pwp-9qqc-pr26).
+    implementation(libs.tess4j) {
+        exclude(group = "org.apache.pdfbox", module = "pdfbox-tools")
+    }
 
     testImplementation(testFixtures(project(":common")))
 }
