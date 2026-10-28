@@ -239,6 +239,12 @@ moves to `invoice-intel.text.*` when the Text job is wired, M1.10). Unreadable P
 
 Page images (PNG) are stored under `raw/{documentId}/pages/{n}.png` for the vision
 strategy and review UI. They contain PII and live in the raw bucket only.
+Implementation (M1.6): `PageRenderer` renders each PDF page with PDFBox at the configured DPI
+(default 300, `invoice-intel.text.dpi`) as RGB and encodes it to PNG, one page at a time: each
+PNG goes to a callback before the next page is rendered, so one page bitmap is on the heap per
+call (§10.1). `PageImageStore` writes each PNG to the raw bucket, then upserts its `PAGE_IMAGE`
+`blob_ref` row (`ON CONFLICT (bucket, key)`), so re-running keeps one row per page. Capping
+concurrent render/OCR jobs with `max-concurrent-page-jobs` comes with the Text job (M1.10).
 
 **Classification (TXT-4)** is rule-based at this stage, because no LLM may see the
 document before PII removal: keyword and pattern scoring ("Tax Invoice", "Credit Note",
