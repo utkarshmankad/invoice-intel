@@ -253,6 +253,11 @@ minimum-area rectangles around text lines (Otsu ink mask, words merged into line
 dilation 1/40 of the page wide; blobs count from 1/10 of the page width and a 5:1 aspect). One
 rectangle around all ink was off by about 1° on ragged invoice layouts. Skews over 15° are treated
 as layout and left alone. Undecodable images raise `TextExtractionException`.
+Implementation (M1.8): `TesseractOcr.ocr(pageNo, image)` runs Tess4J 5.20.0 (system Tesseract
+through JNA) at word level and returns a `TextPage` with `source: OCR`, the image size and pixel
+boxes, and confidences scaled to 0–1. It creates a `Tesseract` instance per call because instances
+aren't thread-safe. Languages join with `+` (`invoice-intel.text.ocr-languages`). The tessdata
+folder is a constructor argument; a config key for it comes with the Text job (M1.10). Tests point JNA at `/opt/homebrew/lib` when it exists.
 
 **Classification (TXT-4)** is rule-based at this stage, because no LLM may see the
 document before PII removal: keyword and pattern scoring ("Tax Invoice", "Credit Note",
