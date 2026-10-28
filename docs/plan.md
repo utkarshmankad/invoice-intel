@@ -95,7 +95,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 - [x] **M2.1** · Regex detectors: phone, email, PIN, PAN, order/invoice numbers · *PII-2(a)* · **Done when** positive/negative tests pass. Done 2026-10-28: `RegexDetector`, `PiiSpan`, `PageText` (architecture §6.3).
 - [x] **M2.2** · Checksum validators: Verhoeff (Aadhaar), GSTIN mod-36; GSTIN/Aadhaar detectors use them · *PII-2(a), VAL-4* · **Done when** property tests pass. Done 2026-10-28: `Verhoeff`, `GstinChecksum` (common), `ChecksumDetector` (pii) (architecture §6.3).
-- [ ] **M2.3** · Seller-block tagging + `AddressBlockDetector` (anchors, buyer name, street, state extraction) · *§6.3, §6.1* · **Done when** fixtures: buyer name/street detected, seller untouched, state kept.
+- [x] **M2.3** · Seller-block tagging + `AddressBlockDetector` (anchors, buyer name, street, state extraction) · *§6.3, §6.1* · **Done when** fixtures: buyer name/street detected, seller untouched, state kept. Done 2026-10-28: `SellerBlockTagger`, `AddressBlockDetector`, `DocumentContext.sellerRanges`, `TextRange` (architecture §6.3).
 - [x] **M2.4** · `SpanMerger` (overlaps, word expansion, type priority) · *§6.3* · **Done when** overlap cases tested. Done 2026-10-28: `SpanMerger` (architecture §6.3).
 - [ ] **M2.5** · Token generator (HMAC, deterministic) + Tink vault (AEAD) + keys from env · *PII-3, PII-7, ADR-06* · **Done when** same value → same token across docs; vault round-trip tested; no key in config.
 - [ ] **M2.6** · Text redactor → `RedactedContent` (package-private constructor) · *PII-1, §6.4* · **Done when** redacted text of fixtures contains tokens and no fixture PII.
@@ -206,6 +206,9 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [x] The Text job (M1.10) should store `DocumentClassifier`'s result in `document.document_class` (column from V1, architecture §5.2, §7) · found in M1.9 · resolved in M1.10
 - [ ] `scripts/ci/perf-summary.sh` looks for `js/stats.json`, which Gatling 3.16 reports no longer contain, so the job summary always says "No Gatling stats found"; read `simulation.log` or the HTML report instead (the assertions still gate) · found in M0.15
 - [ ] A merged `PiiSpan.detector` joins every contributing rule name with `+` (e.g. `regex:landline+regex:mobile`), so it can be longer than one rule name; give `pii_span.detector` a `TEXT` (not a short `VARCHAR`) column when its migration is written · found in M2.4
+- [ ] `SpanMerger` (M2.4) or the PII stage (M2.10) must drop spans with `DocumentContext.isSellerData(span)`; `RegexDetector` still reports seller PAN/PIN/TIN, and only `AddressBlockDetector` filters its own spans · found in M2.3
+- [ ] The signature line "For <seller name>:" at the bottom of invoices is not tagged as seller data; tag it (or treat the seller name as known seller text) before NER (M2.8) flags it as a PERSON · found in M2.3
+- [ ] Layout thresholds (`PageLayout` row/column/gap factors) are tuned on synthetic PDFs and hand-made layouts only; check them on OCR pages and on the owner's redacted eval runs (M4) · found in M2.3
 
 ---
 
