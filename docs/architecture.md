@@ -418,7 +418,9 @@ the likelier reading). Test fixtures build checksum-valid fake values with `Fake
   once tokens are stored. Tink 1.24.0 (Maven Central, checked 2026-10-28).
 - **Order-history import** passes order numbers through the same tokenizer, so
   reconciliation joins on tokens.
-- Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry.
+- Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry,
+  except order and invoice numbers, which keep their consistent token in both modes (spec §6.1,
+  reconciliation joins on it) and still get no vault entry (owner decision 2026-10-28, M2.6).
 
 #### Redaction outputs
 
@@ -430,6 +432,22 @@ the likelier reading). Test fixtures build checksum-valid fake values with `Fake
 
 The rebuilt image-only PDF is the simplest way to *guarantee* PII-4. Selective removal of
 text operators from the original content stream is a possible later improvement (ADR-05).
+
+Implementation (M2.6): `TextRedactor(tokens, vault).redact(layer, mergedSpans, ctx, mode)`
+returns `TextRedactor.Result(content, spans, vaultEntries)`; nothing is persisted (the PII stage,
+M2.10, stores `pii_span` rows and vault entries). `RedactionMode` is `PSEUDONYMIZE` or `REDACT`
+(config in M2.9). Spans that are wholly seller data (`DocumentContext.isSellerData`) are dropped
+first and left out of `spans`. A span's value is its words joined by single spaces; in
+pseudonymize mode it becomes the `TokenGenerator` token and gets one `VaultEntry` per distinct
+token per document. In redact mode spans become `[REDACTED:TYPE]` with no vault entries, except
+`ORDER_NUMBER` and `INVOICE_NUMBER`, which keep their token in both modes because spec §6.1
+requires a consistent token for them (still no vault entry, so irreversible). `PIN_CODE` is
+"Removed" in both modes: `[REDACTED:PIN_CODE]`, no vault entry. Each span's words become one
+replacement word per line (words whose vertical centres are within 0.5 word heights), with the
+union box of that line's words and their lowest confidence; a span over two lines therefore gives
+the same token twice, and a box never spans another column's text between lines. Other words keep
+text and box exactly. Spans touching the same word are rejected (`SpanMerger` output expected);
+a span touching part of a word replaces the whole word. Exceptions carry page numbers only.
 
 #### Leak check (PII-6)
 
@@ -460,6 +478,15 @@ public interface LlmGateway {
   or if `extract` references `TextLayer` or raw blob keys.
 - `RedactedContent` is only created after the PII stage finished successfully, so a
   document that failed PII processing has no `RedactedContent` and cannot reach a model.
+
+Implementation (M2.6): `RedactedContent` is a final class in `dev.invoiceintel.pii` with
+package-private constructors: `documentId()`, `mode()`, `pages()` and `text()` (page texts joined
+by `\n`). Each `RedactedContent.Page` (also package-private constructor) has `pageNo`, `width`,
+`height`, `words()` (`text.Word` with boxes, PII words replaced by token or marker words) and
+`text()` (the words joined by single spaces, as in `PageText`, so offsets map back to word boxes
+for evidence). No accessor returns an original value, and `toString()` shows the document ID,
+mode and page/word counts only (PII-8). Page images join it in M2.7; page/line markers for the
+`TEXT` strategy are built by `extract` (M3) from the word boxes.
 
 ### 6.5 Extract (`extract`)
 
