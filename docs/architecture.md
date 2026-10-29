@@ -619,6 +619,13 @@ new version file, never editing an old one.
 provider, model ID, capabilities (text/vision) and price per million input/output tokens.
 Cost per call = tokens × configured price (EXT-4). Prices are config, so they can be
 updated without code changes.
+Implementation (M3.2): `LlmProperties` (`@ConfigurationProperties("invoice-intel.llm")`) lives
+in `extract`, since `app` may not depend on `extract` (§4.1); it binds through the app's
+`@ConfigurationPropertiesScan` once `extract` is on the app classpath (M3.8). Each
+`models[]` entry is a `ModelSpec`: `name` (registry key), `provider` (a name the gateway maps
+to a client in M3.3), `model-id`, `capabilities` (`text`, `vision`),
+`input-price-per-million` and `output-price-per-million` (USD). `ModelRegistry` looks models
+up by name or capability and rejects duplicate names. An empty list is valid until M3.8.
 
 **Evidence:** the prompt asks the model to cite the line markers it used; the extractor maps
 them back to word boxes from the text layer for review highlighting.
@@ -845,8 +852,8 @@ local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.mod
 - The `fly` profile is added in Phase 2 (`deployment.md`).
 - The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
   (`storage`, `text`, `pii` so far), validated at start-up. A group moves into its own module
-  when that module gets Spring wiring; `pipeline` and `llm` are added by the tasks that use
-  them. `pii` reads `PII_MODE` (default `pseudonymize`) and `NER_MODEL_DIR` (default empty);
+  when that module gets Spring wiring; `pipeline` is added by the task that uses it; `llm` binds to
+  `extract`'s own `LlmProperties` (§6.5, M3.2). `pii` reads `PII_MODE` (default `pseudonymize`) and `NER_MODEL_DIR` (default empty);
   the cross-field checks (a layer on, NER model directory, loopback local LLM) run in
   `PiiSettings` when `Pii.toSettings()` is called at start-up (M2.10a, §6.3), and
   `TOKEN_KEYSET`/`VAULT_KEYSET` are read from the process environment then, so start-up fails
