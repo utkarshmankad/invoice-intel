@@ -1,7 +1,9 @@
 package dev.invoiceintel.app.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.invoiceintel.pii.RedactionMode;
 import java.net.URI;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -26,7 +28,15 @@ class InvoiceIntelPropertiesTest {
               "invoice-intel.text.ocr-languages=eng,hin",
               "invoice-intel.text.tessdata-path=/usr/share/tesseract-ocr/5/tessdata",
               "invoice-intel.text.min-text-chars=20",
-              "invoice-intel.text.max-concurrent-page-jobs=2");
+              "invoice-intel.text.max-concurrent-page-jobs=2",
+              "invoice-intel.pii.mode=pseudonymize",
+              "invoice-intel.pii.detectors.rules=true",
+              "invoice-intel.pii.detectors.address-block=true",
+              "invoice-intel.pii.detectors.ner=true",
+              "invoice-intel.pii.detectors.local-llm=false",
+              "invoice-intel.pii.ner.model-dir=/models/ner",
+              "invoice-intel.pii.ner.threshold=0.5",
+              "invoice-intel.pii.local-llm.endpoint=http://127.0.0.1:11434");
 
   @Test
   void bind_validProperties_exposesTypedValues() {
@@ -121,6 +131,96 @@ class InvoiceIntelPropertiesTest {
   void bind_zeroMinTextChars_failsStartup() {
     runner
         .withPropertyValues("invoice-intel.text.min-text-chars=0")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void bind_piiDefaults_buildSettingsWithEveryLayerButLocalLlm() {
+    runner.run(
+        context -> {
+          var settings = context.getBean(InvoiceIntelProperties.class).pii().toSettings();
+          assertThat(settings.mode()).isEqualTo(RedactionMode.PSEUDONYMIZE);
+          assertThat(settings.rules()).isTrue();
+          assertThat(settings.addressBlock()).isTrue();
+          assertThat(settings.ner().enabled()).isTrue();
+          assertThat(settings.ner().modelDir()).isEqualTo(Path.of("/models/ner"));
+          assertThat(settings.ner().threshold()).isEqualTo(0.5);
+          assertThat(settings.localLlm().enabled()).isFalse();
+        });
+  }
+
+  @Test
+  void bind_redactModeWithLayersSwitchedOff_buildsSettingsWithoutThem() {
+    runner
+        .withPropertyValues(
+            "invoice-intel.pii.mode=REDACT",
+            "invoice-intel.pii.detectors.address-block=false",
+            "invoice-intel.pii.detectors.ner=false",
+            "invoice-intel.pii.ner.model-dir=")
+        .run(
+            context -> {
+              var settings = context.getBean(InvoiceIntelProperties.class).pii().toSettings();
+              assertThat(settings.mode()).isEqualTo(RedactionMode.REDACT);
+              assertThat(settings.rules()).isTrue();
+              assertThat(settings.addressBlock()).isFalse();
+              assertThat(settings.ner().enabled()).isFalse();
+              assertThat(settings.ner().modelDir()).isNull();
+            });
+  }
+
+  @Test
+  void bind_rulesOffAndLocalLlmOn_buildsSettings() {
+    runner
+        .withPropertyValues(
+            "invoice-intel.pii.detectors.rules=false", "invoice-intel.pii.detectors.local-llm=true")
+        .run(
+            context -> {
+              var settings = context.getBean(InvoiceIntelProperties.class).pii().toSettings();
+              assertThat(settings.rules()).isFalse();
+              assertThat(settings.localLlm().enabled()).isTrue();
+            });
+  }
+
+  @Test
+  void toSettings_everyRealLayerOff_isRejected() {
+    runner
+        .withPropertyValues(
+            "invoice-intel.pii.detectors.rules=false",
+            "invoice-intel.pii.detectors.address-block=false",
+            "invoice-intel.pii.detectors.ner=false")
+        .run(
+            context -> {
+              var pii = context.getBean(InvoiceIntelProperties.class).pii();
+              assertThatThrownBy(pii::toSettings).isInstanceOf(IllegalArgumentException.class);
+            });
+  }
+
+  @Test
+  void toSettings_remoteLocalLlmEndpoint_isRejected() {
+    runner
+        .withPropertyValues(
+            "invoice-intel.pii.detectors.local-llm=true",
+            "invoice-intel.pii.local-llm.endpoint=https://llm.example.com")
+        .run(
+            context -> {
+              var pii = context.getBean(InvoiceIntelProperties.class).pii();
+              assertThatThrownBy(pii::toSettings)
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessageContaining("loopback");
+            });
+  }
+
+  @Test
+  void bind_unknownPiiMode_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.pii.mode=anonymize")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void bind_nerThresholdOutOfRange_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.pii.ner.threshold=0")
         .run(context -> assertThat(context).hasFailed());
   }
 }

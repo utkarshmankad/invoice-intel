@@ -7,6 +7,8 @@ dependencies {
     implementation(project(":storage"))
     implementation(project(":ingest"))
     implementation(project(":pipeline"))
+    // Typed `invoice-intel.pii.*` config builds PiiSettings (architecture.md §4.1, §10).
+    implementation(project(":pii"))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)

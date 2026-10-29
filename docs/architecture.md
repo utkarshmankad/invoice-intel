@@ -418,7 +418,19 @@ which also disables DJL's EC2 telemetry, and the ONNX Runtime and tokenizers nat
 precision on synthetic Indian names (`SyntheticNerSamples`: 300 names in 15 invoice contexts, a
 quarter in capitals, plus 30 negatives); the default test run guards the chosen model's numbers,
 `./gradlew :pii:nerBenchmark` compares both candidates (report in
-`pii/build/reports/ner-benchmark/`). NER is not yet wired into the PII stage (M2.9/M2.10).
+`pii/build/reports/ner-benchmark/`). NER is not yet wired into the PII stage (M2.10).
+
+Implementation (M2.9): `PiiSettings` holds the `RedactionMode` and one switch per layer: `rules`
+(`RegexDetector` + `ChecksumDetector`), `addressBlock` (`AddressBlockDetector`), `ner` (model
+directory and threshold) and `localLlm` (endpoint). Each layer can be off on its own for
+evaluation (PII-2), but at least one of rules, address block and NER must stay on, so a config
+mistake can't turn the PII stage into a pass-through; a NER layer that is on needs a model
+directory. `PiiDetectors.create(settings)` builds the enabled detectors in layer order, runs
+them all on a document (`detect`, spans unmerged) and closes the NER model. `LocalLlmDetector`
+is a stub (`detect` returns no spans, no connection is opened), off by default; its endpoint must
+be an http(s) URL on a literal loopback host (`localhost`, `127.x.x.x`, `[::1]`, no DNS lookup),
+checked when the layer is on. The app binds `invoice-intel.pii.*` (§10) and builds the settings
+with `InvoiceIntelProperties.Pii.toSettings()`.
 
 #### Tokens and vault (PII-3, PII-7)
 
@@ -752,7 +764,8 @@ for PII evaluation.
 | `fly` | Managed Postgres | R2 | Remote APIs via Fly secrets | See `deployment.md` |
 
 Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
-`pipeline.*` (thresholds, concurrency), `pii.*` (detector toggles, mode), `llm.models[]`,
+`pipeline.*` (thresholds, concurrency), `pii.*` (`mode`, `detectors.{rules, address-block, ner,
+local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.models[]`,
 `storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
 `max-concurrent-page-jobs`).
 
@@ -772,9 +785,12 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
   (`TestcontainersConfiguration` in `app/src/integrationTest`).
 - The `fly` profile is added in Phase 2 (`deployment.md`).
 - The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
-  (`storage`, `text` so far), validated at start-up. A group moves into its own module when
-  that module gets Spring wiring; `pipeline`, `pii` and `llm` are added by the tasks that use
-  them.
+  (`storage`, `text`, `pii` so far), validated at start-up. A group moves into its own module
+  when that module gets Spring wiring; `pipeline` and `llm` are added by the tasks that use
+  them. `pii` reads `PII_MODE` (default `pseudonymize`) and `NER_MODEL_DIR` (default empty);
+  the cross-field checks (a layer on, NER model directory, loopback local LLM) run in
+  `PiiSettings` when `Pii.toSettings()` is called, i.e. when the PII stage is wired (M2.10), so
+  start-up doesn't need a NER model yet. `app` depends on `pii` for these types (§4.1).
 - Actuator exposes only `/actuator/health` over HTTP, without details.
 - JobRunr (`jobrunr.*`, M1.4) uses the app's datasource and creates its own tables. The
   background job server is on in `application.yaml` and off in `application-test.yaml`, so only

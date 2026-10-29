@@ -101,7 +101,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M2.6** · Text redactor → `RedactedContent` (package-private constructor) · *PII-1, §6.4* · **Done when** redacted text of fixtures contains tokens and no fixture PII. Done 2026-10-28: `TextRedactor`, `RedactedContent` (architecture §6.3, §6.4).
 - [x] **M2.7** · Image redactor (masked page PNGs) + redacted PDF rebuilt from images · *PII-4, PII-5, ADR-05* · **Done when** the redaction-proof test passes (re-extract + OCR finds no PII). Done 2026-10-29: `ImageRedactor`, `RedactedPdf`, `RedactedContent.Page.image()`, `RedactionProofTest` (architecture §6.3).
 - [x] **M2.8** · `NerDetector` with DJL + ONNX; compare two small NER models on synthetic Indian names · *PII-2(b), A2, R3* · **Done when** chosen model recorded in architecture A2 with recall numbers. Done 2026-10-28: `NerDetector`, model `onnx-community/distilbert-NER-ONNX` (architecture §6.3, ADR-15, A2).
-- [ ] **M2.9** · Detector toggles + pseudonymize/redact mode config; optional `LocalLlmDetector` stub, off by default · *PII-2, PII-3* · **Done when** each layer can be switched off in config and tests cover both modes.
+- [x] **M2.9** · Detector toggles + pseudonymize/redact mode config; optional `LocalLlmDetector` stub, off by default · *PII-2, PII-3* · **Done when** each layer can be switched off in config and tests cover both modes. Done 2026-10-29: `PiiSettings`, `PiiDetectors`, `LocalLlmDetector` (stub), `invoice-intel.pii.*` (architecture §6.3, §10).
 - [ ] **M2.10** · PII stage job; failure → `FAILED` with no `RedactedContent` · *PII-1, §5.1* · **Done when** fixture reaches PII_CLEAN; forced failure blocks progress.
 - [ ] **M2.11** · ArchUnit PII-gate rules (§6.4) · *PII-1, NFR-1* · **Done when** a deliberate violation fails the build (then removed).
 
@@ -225,6 +225,8 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] DJL 0.39.0 pulls ONNX Runtime 1.21.1 (current 1.31.1, checked 2026-10-28); bump with DJL, and cap ONNX Runtime intra-op threads through a config key when NER runs in the PII stage (architecture §10.1 bounded CPU work) · found in M2.8
 - [ ] OCR word boxes are in the pixels of the preprocessed (deskewed) image (`DocumentTextService`), but only the original render is stored as `PAGE_IMAGE`. The PII stage (M2.10) must mask the image the boxes were measured on: keep or re-create the preprocessed image for OCR pages (deterministic preprocessing) instead of masking the stored render with deskewed coordinates · found in M2.7
 - [ ] `RedactionProofTest` covers digital-PDF fixtures only; add an OCR-page case (rasterised fixture → OCR layer → mask → OCR again) when M2.10 settles which image OCR pages are masked on · found in M2.7
+- [ ] `invoice-intel.pii.*` is bound but `Pii.toSettings()` isn't called at start-up yet, and the default enables NER while `NER_MODEL_DIR` defaults to empty. When M2.10 wires the PII stage, call it at start-up (fail fast), and set `NER_MODEL_DIR` for local runs, CI integration tests and the Docker image (see the NER packaging follow-up) or turn NER off in `application-test.yaml` · found in M2.9
+- [ ] `LocalLlmDetector` is a stub that reports nothing; implementing it needs a local model server choice, a prompt and an HTTP client outside `extract` (no Spring AI client, §4.1), so it needs an ADR first · found in M2.9
 
 ---
 
