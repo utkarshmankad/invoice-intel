@@ -601,6 +601,16 @@ Spring AI structured output generates the JSON schema from the records; response
 parsed and then checked with Bean Validation. A parse failure gets one repair retry with the
 error message, then the stage fails.
 
+Record shape (M3.1, root package `dev.invoiceintel.extract`): every scalar of spec §5.1–5.2
+is a `Field<T>(value, confidence, source, evidence)` with `source` ∈ `LLM`/`RULE`/`HUMAN`
+(spec §5.3). A field the document lacks is a `null` `Field`; a present `Field` always has a
+non-null value. `Evidence(page, box, lineRefs)` holds the line markers the model cited and,
+after evidence mapping (M3.6), a `BoundingBox` in the text layer's page units; it never holds
+copied text. Line items carry `chargeType` (`PRODUCT`, `SHIPPING`, `CONVENIENCE`, `OTHER`).
+Bean Validation checks only what holds for every document class (required fields, confidence
+0–1, at least one line item and one tax line per item); class- or era-dependent requirements
+(GSTIN, place of supply, HSN, original invoice ref) and arithmetic are validate rules.
+
 **Prompts (EXT-5):** `extract/src/main/resources/prompts/{name}/v{n}.st` (StringTemplate).
 The prompt name + version is stored on every `llm_call`. Changing a prompt means adding a
 new version file, never editing an old one.
