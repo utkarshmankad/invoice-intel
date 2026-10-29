@@ -18,7 +18,11 @@ import org.springframework.test.context.ActiveProfiles;
 /** NFR-6, PII-8: the running app writes JSON log lines with MDC fields and masked PII. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 @ExtendWith(OutputCaptureExtension.class)
 class StructuredLoggingIT {
 

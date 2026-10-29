@@ -38,7 +38,11 @@ import tools.jackson.databind.ObjectMapper;
 /** {@code POST /api/documents}: ING-1..4, architecture.md §6.1. Synthetic fixtures only. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 class DocumentUploadIT {
 
   /** Seed of the committed smoke fixture; changing it means regenerating the file. */

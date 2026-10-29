@@ -23,6 +23,9 @@ dependencies {
     runtimeOnly(libs.flyway.database.postgresql)
     runtimeOnly(libs.postgresql)
     testImplementation(libs.spring.boot.starter.test)
+    // Throwaway PII keysets built in-process (PII-7); production code reads them via PiiKeys.
+    testImplementation(libs.tink)
+    "integrationTestImplementation"(libs.tink)
 
     // The ArchUnit module rules (architecture.md §4.1) import the main classes of every
     // module. Test-only, so app's production classpath keeps only its allowed dependencies.
@@ -45,6 +48,20 @@ dependencies {
 // `local` reads .env from the repository root (application-local.yaml).
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     workingDir = rootDir
+}
+
+// The PII stage loads the pinned NER model at start-up (ADR-15); tests and bootRun get the
+// staged copy, as pii's own tests do. DJL must never download anything at run time.
+val nerModelDir = rootProject.layout.projectDirectory.dir("pii/build/ner-model").asFile.absolutePath
+tasks.withType<Test>().configureEach {
+    dependsOn(":pii:stageNerModel")
+    systemProperty("invoice-intel.pii.ner.model-dir", nerModelDir)
+    systemProperty("ai.djl.offline", "true")
+}
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    dependsOn(":pii:stageNerModel")
+    systemProperty("invoice-intel.pii.ner.model-dir", nerModelDir)
+    systemProperty("ai.djl.offline", "true")
 }
 
 // The Text stage calls the system Tesseract through JNA (architecture.md §6.2). JNA doesn't search

@@ -16,7 +16,11 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 class InvoiceIntelApplicationIT {
 
   @LocalServerPort int port;

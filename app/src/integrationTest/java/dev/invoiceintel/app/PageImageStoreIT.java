@@ -28,7 +28,11 @@ import org.springframework.test.context.ActiveProfiles;
 /** Page images in the raw bucket with PAGE_IMAGE rows: TXT-2, architecture.md §6.2, §9.1. */
 @SpringBootTest
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 class PageImageStoreIT {
 
   @Autowired JdbcClient jdbc;

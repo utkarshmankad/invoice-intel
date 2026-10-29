@@ -24,7 +24,11 @@ import org.springframework.test.context.ActiveProfiles;
 /** NFR-2, architecture.md §11: Basic auth for the API, form login for everything else. */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 class SecurityIT {
 
   private static final Pattern CSRF_INPUT =
