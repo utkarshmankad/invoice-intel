@@ -26,7 +26,9 @@ COPY perf/ perf/
 # Tests and static analysis run in their own CI jobs; this stage only packages. The pinned NER
 # model (ADR-15) is downloaded here with every file's SHA-256 checked and staged at
 # pii/build/ner-model, so the runtime never downloads anything.
+# The download writes 0600 temp files, so the model is made world-readable for the app user.
 RUN ./gradlew --no-daemon :app:bootJar :pii:stageNerModel -PmodelCacheDir=/workspace/models \
+    && chmod -R a+rX pii/build/ner-model \
     && java -Djarmode=tools -jar app/build/libs/app.jar extract --layers --launcher --destination extracted
 
 # --- Runtime: JRE + Tesseract, non-root ------------------------------------------------
