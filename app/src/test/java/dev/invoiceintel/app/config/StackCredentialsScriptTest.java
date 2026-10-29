@@ -40,8 +40,9 @@ class StackCredentialsScriptTest {
   }
 
   private static Map<String, String> runScript() throws IOException, InterruptedException {
-    Path script = Path.of("..", "scripts", "ci", "stack-credentials.sh").toAbsolutePath();
-    var process = new ProcessBuilder("bash", script.toString());
+    Path script =
+        Path.of("..", "scripts", "ci", "stack-credentials.sh").toAbsolutePath().normalize();
+    var process = new ProcessBuilder(script.toString());
     // In GitHub Actions the script would append to $GITHUB_ENV instead of printing.
     process.environment().remove("GITHUB_ENV");
     Process p = process.redirectErrorStream(true).start();
