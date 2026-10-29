@@ -155,10 +155,30 @@ class LlmPropertiesTest {
             new ModelSpec("m", "p", "id", null, BigDecimal.ZERO, BigDecimal.ZERO)
                 .supports(ModelCapability.TEXT))
         .isFalse();
-    assertThat(new LlmProperties(null).models()).isEqualTo(List.of());
+    assertThat(new LlmProperties(null, null, null).models()).isEqualTo(List.of());
   }
 
   private static Set<String> paths(Set<? extends ConstraintViolation<?>> violations) {
     return violations.stream().map(v -> v.getPropertyPath().toString()).collect(Collectors.toSet());
+  }
+
+  @Test
+  void bind_concurrencyCaps_buildRateLimiter() {
+    Map<String, String> config = twoProviders();
+    config.put("invoice-intel.llm.max-concurrent-calls.openai", "2");
+    config.put("invoice-intel.llm.default-max-concurrent-calls", "1");
+
+    LlmProperties properties = bind(config);
+
+    assertThat(validator.validate(properties)).isEmpty();
+    ProviderRateLimiter limiter = properties.rateLimiter();
+    assertThat(limiter.available("openai")).isEqualTo(2);
+    assertThat(limiter.available("ollama")).isEqualTo(1);
+  }
+
+  @Test
+  void bind_noConcurrencyCaps_usesDefault() {
+    assertThat(bind(twoProviders()).rateLimiter().available("openai"))
+        .isEqualTo(LlmProperties.DEFAULT_MAX_CONCURRENT_CALLS);
   }
 }

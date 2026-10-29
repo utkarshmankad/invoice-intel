@@ -19,6 +19,8 @@ tika = "4.1.0" # checked 2026-10-28
 jobrunr = "9.0.2" # checked 2026-10-28 (ADR-01)
 tink = "1.24.0" # checked 2026-10-28
 djl = "0.39.0" # checked 2026-10-28 (ADR-01, ADR-15); ONNX Runtime 1.21.1 comes with the engine
+spring-ai = "2.0.2" # checked 2026-10-30; 2.0.x targets Spring Boot 4
+wiremock = "3.13.2" # checked 2026-10-30; standalone jar shades Jetty
 gatling-plugin = "3.16.0"
 jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
@@ -58,6 +60,10 @@ djl-api = { module = "ai.djl:api", version.ref = "djl" }
 djl-onnxruntime-engine = { module = "ai.djl.onnxruntime:onnxruntime-engine", version.ref = "djl" }
 djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "djl" }
 jobrunr-spring-boot-starter = { module = "org.jobrunr:jobrunr-spring-boot-4-starter", version.ref = "jobrunr" }
+spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+spring-ai-model = { module = "org.springframework.ai:spring-ai-model" }
+spring-ai-ollama = { module = "org.springframework.ai:spring-ai-ollama" }
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 awaitility = { module = "org.awaitility:awaitility" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 spotbugs-annotations = { module = "com.github.spotbugs:spotbugs-annotations", version.ref = "spotbugs" }
