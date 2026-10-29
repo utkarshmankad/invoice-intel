@@ -98,9 +98,10 @@ class SpringAiLlmGatewayTest {
         recorded::add);
   }
 
+  /** The instructions come from the versioned test prompt {@code prompts/totals/v1.st}. */
   private static ExtractionRequest<Totals> request() {
-    return new ExtractionRequest<>(
-        "local-text", PROMPT, "Extract the invoice number and grand total.", Totals.class);
+    return new PromptLoader()
+        .request("local-text", PROMPT, Map.of("currency", "INR"), Totals.class);
   }
 
   /** An Ollama /api/chat response with {@code content} as the assistant message. */
@@ -177,7 +178,10 @@ class SpringAiLlmGatewayTest {
     wireMock.verify(
         postRequestedFor(urlEqualTo("/api/chat"))
             .withRequestBody(containing("example-local-8b"))
-            .withRequestBody(containing("INV-TOKEN-1"))
+            .withRequestBody(containing("Extract the totals for INR."))
+            // TEXT strategy: each line of the redacted text carries its marker (EXT-2).
+            .withRequestBody(
+                containing("[p1:l1] Invoice INV-TOKEN-1\\n[p1:l2] Grand Total 1180.00"))
             .withRequestBody(containing("grandTotal")));
   }
 

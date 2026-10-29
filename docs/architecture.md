@@ -614,6 +614,17 @@ Bean Validation checks only what holds for every document class (required fields
 **Prompts (EXT-5):** `extract/src/main/resources/prompts/{name}/v{n}.st` (StringTemplate).
 The prompt name + version is stored on every `llm_call`. Changing a prompt means adding a
 new version file, never editing an old one.
+Implementation (M3.4): `PromptLoader` reads `prompts/{name}/v{n}.st` from the classpath
+(names are lowercase kebab-case folder names, so a ref can't leave `prompts/`), caches the
+template, renders it with Spring AI's `StTemplateRenderer` (`{variable}` placeholders; a missing
+variable fails) and builds the `ExtractionRequest` carrying the `PromptRef`, so
+`llm_call.prompt_version` is `name/v{n}`. The first prompt is `invoice-extraction/v1`.
+
+**Line markers (M3.4):** `TextLines` groups each `RedactedContent.Page`'s words into lines from
+the word boxes only (top to bottom; a word joins the current line when its vertical centre lies
+within the line's first word's box; left to right within a line), so the grouping is
+deterministic and evidence mapping (M3.6) can repeat it. The `TEXT` input is one row per line,
+`[p{page}:l{line}] words`; the model cites `p{page}:l{line}` in `Evidence.lineRefs`.
 
 **Model registry (EXT-3, NFR-8):** `invoice-intel.llm.models` in config lists each model's
 provider, model ID, capabilities (text/vision) and price per million input/output tokens.
@@ -633,7 +644,7 @@ building those clients from config is M3.8's wiring, so no provider module is a 
 yet (tests use `spring-ai-ollama` against WireMock). `ExtractionRequest<T>(model, prompt,
 instructions, outputType)` names a registry model, a `PromptRef(name, version)` and the output
 record; the system message is the instructions plus `BeanOutputConverter`'s schema, the user
-message is `RedactedContent.text()` (M3.4 adds line markers). The model ID is set on the client's
+message is the line-marked text of the `TEXT` strategy (M3.4, below). The model ID is set on the client's
 own options type (`client.getOptions().mutate()`), since Spring AI 2.0 providers reject generic
 `ChatOptions`. A response that fails to parse or fails Bean Validation gets one repair call
 carrying the error; a second failure gives `LlmResult.Failed` with `LLM_INVALID_OUTPUT`, a
