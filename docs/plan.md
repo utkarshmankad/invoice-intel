@@ -110,7 +110,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M3 — Extraction
 
-- [ ] **M3.1** · Schema records: `InvoiceExtraction`, `LineItem`, `TaxLine`, `Field<T>` + Bean Validation · *§5, EXT-1* · **Done when** JSON round-trip tested.
+- [x] **M3.1** · Schema records: `InvoiceExtraction`, `LineItem`, `TaxLine`, `Field<T>` + Bean Validation · *§5, EXT-1* · **Done when** JSON round-trip tested. Done 2026-10-30: records in `extract` root package (`Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`), `InvoiceExtractionTest` (Jackson 3 round-trip, Bean Validation cases); architecture §6.5.
 - [ ] **M3.2** · Model registry config (provider, model ID, capabilities, prices) · *EXT-3, NFR-8* · **Done when** two providers configurable without code changes.
 - [ ] **M3.3** · `LlmGateway` on Spring AI: structured output, one repair retry, rate limiter, `llm_call` recording with tokens/cost/latency · *EXT-1, EXT-4, NFR-4, §6.5* · **Done when** WireMock tests cover success, repair, failure.
 - [ ] **M3.4** · Versioned prompt files + loader; `TEXT` strategy with line markers · *EXT-2, EXT-5* · **Done when** prompt name/version stored on each call.
