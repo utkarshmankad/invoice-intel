@@ -627,6 +627,24 @@ to a client in M3.3), `model-id`, `capabilities` (`text`, `vision`),
 `input-price-per-million` and `output-price-per-million` (USD). `ModelRegistry` looks models
 up by name or capability and rejects duplicate names. An empty list is valid until M3.8.
 
+**Gateway (M3.3):** `SpringAiLlmGateway` implements `LlmGateway` on Spring AI's `ChatModel`
+(`spring-ai-model`, BOM 2.0.x) and takes a chat client per provider name (`ModelSpec.provider`);
+building those clients from config is M3.8's wiring, so no provider module is a main dependency
+yet (tests use `spring-ai-ollama` against WireMock). `ExtractionRequest<T>(model, prompt,
+instructions, outputType)` names a registry model, a `PromptRef(name, version)` and the output
+record; the system message is the instructions plus `BeanOutputConverter`'s schema, the user
+message is `RedactedContent.text()` (M3.4 adds line markers). The model ID is set on the client's
+own options type (`client.getOptions().mutate()`), since Spring AI 2.0 providers reject generic
+`ChatOptions`. A response that fails to parse or fails Bean Validation gets one repair call
+carrying the error; a second failure gives `LlmResult.Failed` with `LLM_INVALID_OUTPUT`, a
+provider exception `LLM_ERROR` (no extra retry beyond the client's own). Every call, including
+failed ones, is passed to `LlmCallLog` (`JdbcLlmCallLog` writes `llm_call`) with tokens from the
+response usage, cost = tokens × price / 10⁶ (USD, 6 decimals) and latency. Calls run under
+`ProviderRateLimiter`, a fair semaphore per provider sized by
+`invoice-intel.llm.max-concurrent-calls.<provider>` (default
+`invoice-intel.llm.default-max-concurrent-calls`, 4). Logs carry document ID, stage, model and
+attempt only (PII-8).
+
 **Evidence:** the prompt asks the model to cite the line markers it used; the extractor maps
 them back to word boxes from the text layer for review highlighting.
 
@@ -749,6 +767,11 @@ the current ones are those of the latest `SUCCEEDED` run) and names its offsets 
 `token` are `TEXT` (a merged span's detector joins rule names with `+`). `pii_vault` is keyed by
 `token` only, shared by all documents, and rows are never updated.
 
+`llm_call` (V6, M3.3): one row per model call, failed calls included; `prompt_version` is
+`PromptRef.id()` (`name/v{n}`), `attempt` is 1, or 2 for the repair retry, `outcome` is
+`SUCCEEDED`, `INVALID_OUTPUT` or `ERROR`, `cost_usd` is `NUMERIC(12,6)`; `stage` uses the
+`stage_run` names; rows cascade-delete with their document. No prompt or response text.
+
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
 document.
@@ -832,6 +855,7 @@ for PII evaluation.
 Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 `pipeline.*` (thresholds, concurrency), `pii.*` (`mode`, `detectors.{rules, address-block, ner,
 local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.models[]`,
+`llm.max-concurrent-calls.<provider>`, `llm.default-max-concurrent-calls` (M3.3),
 `storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
 `max-concurrent-page-jobs`).
 

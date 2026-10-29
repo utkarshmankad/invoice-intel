@@ -12,6 +12,9 @@ import java.time.Duration
 
 plugins {
     id("invoiceintel.mutation-testing")
+    // RedactedContentFixtures lets other modules' tests build a RedactedContent, whose
+    // constructors stay package-private (PII-1, architecture.md §6.4).
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -35,6 +38,8 @@ dependencies {
     implementation(libs.pdfbox)
 
     testImplementation(testFixtures(project(":common")))
+    // The Boot BOM versions the api dependencies that testFixtures inherits from main.
+    testFixturesImplementation(platform(libs.spring.boot.bom))
 }
 
 /**
