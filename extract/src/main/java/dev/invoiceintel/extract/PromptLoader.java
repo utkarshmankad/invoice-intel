@@ -70,8 +70,29 @@ public final class PromptLoader {
    */
   public <T> ExtractionRequest<T> request(
       String model, PromptRef ref, Map<String, Object> variables, Class<T> outputType) {
+    return request(model, ref, variables, outputType, ExtractionStrategy.TEXT);
+  }
+
+  /** As {@link #request(String, PromptRef, Map, Class)}, for {@code strategy} (EXT-2). */
+  public <T> ExtractionRequest<T> request(
+      String model,
+      PromptRef ref,
+      Map<String, Object> variables,
+      Class<T> outputType,
+      ExtractionStrategy strategy) {
     Rendered rendered = render(ref, variables);
-    return new ExtractionRequest<>(model, rendered.ref(), rendered.text(), outputType);
+    return new ExtractionRequest<>(model, rendered.ref(), rendered.text(), outputType, strategy);
+  }
+
+  /**
+   * A request for {@code strategy} with its {@linkplain ExtractionStrategy#defaultPrompt prompt}.
+   */
+  public <T> ExtractionRequest<T> request(
+      String model,
+      ExtractionStrategy strategy,
+      Map<String, Object> variables,
+      Class<T> outputType) {
+    return request(model, strategy.defaultPrompt(), variables, outputType, strategy);
   }
 
   private String read(PromptRef ref) {
