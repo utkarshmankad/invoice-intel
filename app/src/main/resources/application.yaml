@@ -36,6 +36,22 @@ invoice-intel:
     tessdata-path: ${TESSDATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
     min-text-chars: 20
     max-concurrent-page-jobs: 2
+  # PII stage (PII-2, PII-3, architecture.md §6.3). Each detection layer can be switched off
+  # for evaluation, but at least one of rules, address-block and ner must stay on. The local
+  # LLM layer is a stub, off by default, and only accepts a loopback endpoint.
+  pii:
+    mode: ${PII_MODE:pseudonymize}
+    detectors:
+      rules: true
+      address-block: true
+      ner: true
+      local-llm: false
+    ner:
+      # Pinned model snapshot (ADR-15); set when the PII stage loads NER (M2.10).
+      model-dir: ${NER_MODEL_DIR:}
+      threshold: 0.5
+    local-llm:
+      endpoint: http://127.0.0.1:11434
 
 # Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its
 # own tables. The dashboard stays off: it would listen on its own port without the app's login.
