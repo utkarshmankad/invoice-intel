@@ -12,5 +12,7 @@ dependencies {
     api(project(":storage"))
     // The Text stage handler wires the text module (TXT-1..4, architecture.md §5.2).
     implementation(project(":text"))
+    // The PII stage handler runs the pii module (PII-1..5, architecture.md §5.2, §6.3).
+    implementation(project(":pii"))
     implementation(libs.slf4j.api)
 }

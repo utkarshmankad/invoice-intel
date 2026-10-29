@@ -41,8 +41,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * The real Text stage on uploaded synthetic fixtures (TXT-1..4, architecture.md §5.2, §6.2). No PII
- * stage exists yet, so documents stop in TEXT_READY.
+ * The real Text stage on uploaded synthetic fixtures (TXT-1..4, architecture.md §5.2, §6.2).
+ * Documents go on through the PII stage and stop in PII_CLEAN, the last stage with a handler; the
+ * PII outputs are checked in {@link PiiStageIT}.
  */
 @SpringBootTest(
     properties = {
@@ -68,7 +69,7 @@ class TextStageIT {
     SyntheticInvoice invoice = SyntheticInvoiceGenerator.generate(InvoiceType.GST_TAX_INVOICE, 51);
     DocumentId id = upload(SyntheticInvoiceGenerator.toPdf(invoice));
 
-    awaitStatus(id, "TEXT_READY");
+    awaitStatus(id, "PII_CLEAN");
 
     TextLayer layer = new TextLayerStore(jdbc).latest(id).orElseThrow();
     assertThat(layer.pages()).hasSize(1);
@@ -84,7 +85,7 @@ class TextStageIT {
   void photo_isStoredAsPageOneAndOcrd(String format) throws IOException {
     DocumentId id = upload(photo(InvoiceType.CREDIT_NOTE, format.equals("png") ? 52 : 54, format));
 
-    awaitStatus(id, "TEXT_READY");
+    awaitStatus(id, "PII_CLEAN");
 
     TextPage page = new TextLayerStore(jdbc).latest(id).orElseThrow().pages().getFirst();
     assertThat(page.source()).isEqualTo(TextSource.OCR);
@@ -97,7 +98,7 @@ class TextStageIT {
   void scannedPdf_pageWithoutTextLayer_isOcrd() throws IOException {
     DocumentId id = upload(scannedPdf(photo(InvoiceType.GST_TAX_INVOICE, 55, "png")));
 
-    awaitStatus(id, "TEXT_READY");
+    awaitStatus(id, "PII_CLEAN");
 
     TextPage page = new TextLayerStore(jdbc).latest(id).orElseThrow().pages().getFirst();
     assertThat(page.source()).isEqualTo(TextSource.OCR);
@@ -127,12 +128,12 @@ class TextStageIT {
         upload(
             SyntheticInvoiceGenerator.toPdf(
                 SyntheticInvoiceGenerator.generate(InvoiceType.PRE_GST_INVOICE, 53)));
-    awaitStatus(id, "TEXT_READY");
+    awaitStatus(id, "PII_CLEAN");
 
     assertThat(pipeline.reprocess(id, Stage.TEXT)).isTrue();
 
     await().atMost(TIMEOUT).until(() -> layerRuns(id).equals(List.of(1, 2)));
-    awaitStatus(id, "TEXT_READY");
+    awaitStatus(id, "PII_CLEAN");
     assertThat(documentClass(id)).isEqualTo("PRE_GST_INVOICE");
     assertThat(pageImages(id)).containsExactly(1);
   }
