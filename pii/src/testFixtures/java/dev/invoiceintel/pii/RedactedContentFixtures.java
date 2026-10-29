@@ -31,6 +31,15 @@ public final class RedactedContentFixtures {
     return new RedactedContent(documentId, RedactionMode.PSEUDONYMIZE, pages);
   }
 
+  /** One page per entry of {@code pageWords}, with exactly those words and boxes. */
+  public static RedactedContent ofWords(DocumentId documentId, List<List<Word>> pageWords) {
+    var pages = new ArrayList<RedactedContent.Page>();
+    for (int i = 0; i < pageWords.size(); i++) {
+      pages.add(new RedactedContent.Page(i + 1, PAGE_WIDTH, PAGE_HEIGHT, pageWords.get(i)));
+    }
+    return new RedactedContent(documentId, RedactionMode.PSEUDONYMIZE, pages);
+  }
+
   private static RedactedContent.Page page(int pageNo, String text) {
     var words = new ArrayList<Word>();
     String[] lines = text.split("\n", -1);

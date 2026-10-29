@@ -77,7 +77,8 @@ public final class SpringAiLlmGateway implements LlmGateway {
     var converter = new BeanOutputConverter<>(request.outputType());
     var messages = new ArrayList<Message>();
     messages.add(new SystemMessage(request.instructions() + "\n\n" + converter.getFormat()));
-    messages.add(new UserMessage(content.text()));
+    // TEXT strategy (EXT-2): redacted lines with the markers the model cites as evidence.
+    messages.add(new UserMessage(TextLines.markedText(content)));
     // Spring AI 2.0 providers accept only their own options type, so the model ID goes onto
     // the client's defaults.
     ChatOptions options = client.getOptions().mutate().model(model.modelId()).build();
