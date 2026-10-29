@@ -1,5 +1,10 @@
 package dev.invoiceintel.app.config;
 
+import dev.invoiceintel.pii.PiiDetectors;
+import dev.invoiceintel.pii.PiiSettings;
+import dev.invoiceintel.pii.PiiVault;
+import dev.invoiceintel.pii.TokenGenerator;
+import dev.invoiceintel.pipeline.PiiStageHandler;
 import dev.invoiceintel.pipeline.PipelineService;
 import dev.invoiceintel.pipeline.StageHandler;
 import dev.invoiceintel.pipeline.StageJobHandler;
@@ -34,6 +39,30 @@ public class PipelineConfiguration {
             text.tessdataPath(),
             text.minTextChars(),
             text.maxConcurrentPageJobs()));
+  }
+
+  /**
+   * PII stage: spans, vault entries, redacted pages and PDF (architecture.md §5.2, §6.3). The PDF's
+   * page size comes from the DPI the Text stage rendered at.
+   */
+  @Bean
+  PiiStageHandler piiStage(
+      BlobStore blobStore,
+      JdbcClient jdbc,
+      PiiDetectors detectors,
+      TokenGenerator tokens,
+      PiiVault vault,
+      PiiSettings settings,
+      InvoiceIntelProperties properties) {
+    return new PiiStageHandler(
+        blobStore,
+        jdbc,
+        detectors,
+        tokens,
+        vault,
+        settings.mode(),
+        new PiiStageHandler.Settings(
+            properties.storage().bucketRedacted(), properties.text().dpi()));
   }
 
   @Bean

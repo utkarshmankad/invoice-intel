@@ -56,15 +56,24 @@ public final class TextRedactor {
    * @param content the redacted document
    * @param spans the spans that were replaced (seller spans removed), for {@code pii_span} rows and
    *     the image redactor
+   * @param replacements the replacement text of each span, in the order of {@code spans}: its
+   *     token, or the {@code [REDACTED:TYPE]} marker
    * @param vaultEntries one entry per distinct token, to store in {@code pii_vault}; empty in
    *     redact mode
    */
   public record Result(
-      RedactedContent content, List<PiiSpan> spans, List<VaultEntry> vaultEntries) {
+      RedactedContent content,
+      List<PiiSpan> spans,
+      List<String> replacements,
+      List<VaultEntry> vaultEntries) {
 
     public Result {
       Objects.requireNonNull(content, "content");
       spans = List.copyOf(spans);
+      replacements = List.copyOf(replacements);
+      if (replacements.size() != spans.size()) {
+        throw new IllegalArgumentException("one replacement per span expected");
+      }
       vaultEntries = List.copyOf(vaultEntries);
     }
 
@@ -117,10 +126,11 @@ public final class TextRedactor {
     }
 
     Map<String, VaultEntry> entries = new LinkedHashMap<>();
+    Map<PiiSpan, String> replaced = new HashMap<>();
     var pages = new ArrayList<RedactedContent.Page>();
     for (TextPage page : layer.pages()) {
       List<PiiSpan> pageSpans = byPage.getOrDefault(page.pageNo(), List.of());
-      pages.add(redactPage(page, texts.get(page.pageNo()), pageSpans, mode, entries));
+      pages.add(redactPage(page, texts.get(page.pageNo()), pageSpans, mode, entries, replaced));
     }
     kept.sort(
         (a, b) ->
@@ -128,7 +138,10 @@ public final class TextRedactor {
                 ? Integer.compare(a.pageNo(), b.pageNo())
                 : Integer.compare(a.start(), b.start()));
     return new Result(
-        new RedactedContent(ctx.documentId(), mode, pages), kept, List.copyOf(entries.values()));
+        new RedactedContent(ctx.documentId(), mode, pages),
+        kept,
+        kept.stream().map(replaced::get).toList(),
+        List.copyOf(entries.values()));
   }
 
   private RedactedContent.Page redactPage(
@@ -136,7 +149,8 @@ public final class TextRedactor {
       PageText text,
       List<PiiSpan> spans,
       RedactionMode mode,
-      Map<String, VaultEntry> entries) {
+      Map<String, VaultEntry> entries,
+      Map<PiiSpan, String> replaced) {
     List<Word> words = page.words();
     // owner[i]: index in spans of the span covering word i, or -1 when the word is kept.
     int[] owner = new int[words.size()];
@@ -145,7 +159,9 @@ public final class TextRedactor {
     for (int s = 0; s < spans.size(); s++) {
       PiiSpan span = spans.get(s);
       String value = text.text().substring(span.start(), span.end());
-      replacements.add(replace(span.type(), value, mode, entries));
+      String replacement = replace(span.type(), value, mode, entries);
+      replacements.add(replacement);
+      replaced.put(span, replacement);
       for (int i = 0; i < words.size(); i++) {
         if (text.wordStart(i) < span.end() && text.wordEnd(i) > span.start()) {
           if (owner[i] >= 0) {

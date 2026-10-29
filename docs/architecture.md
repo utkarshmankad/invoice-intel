@@ -142,7 +142,9 @@ Implementation (M1.4), in `pipeline`:
   their tasks. The leak check runs inside `EXTRACT`.
 - A stage is a `StageHandler` bean. Every handler bean joins the chain; a stage with no handler
   ends it, so a document stops in the last state that has one. Since M1.10 the Text handler is
-  `TextStageHandler` (§6.2); `PlaceholderStageHandler` remains for tests of stages not built yet.
+  `TextStageHandler` (§6.2) and since M2.10b the PII handler is `PiiStageHandler` (§6.3), so
+  documents now stop in `PII_CLEAN`; `PlaceholderStageHandler` remains for tests of stages not
+  built yet.
 - `PipelineService.start` enqueues a `StageJob` (JobRunr `JobRequest` holding the document ID and
   stage only, since JobRunr stores it as JSON and shows it on its dashboard; PII-8).
   `StageJobHandler` runs it in three transactions, each first locking the document row
@@ -492,7 +494,28 @@ so it has no text layer, fonts, annotations or metadata of the original. `Redact
 runs detectors → merge → text and image redaction → rebuilt PDF on synthetic invoices, then
 re-extracts the PDF (no words) and OCRs it (no fixture PII value, while totals and seller PAN are
 still read). Storing the redacted pages and PDF (`REDACTED_PAGE`, `REDACTED_PDF`) is part of the
-PII stage (M2.10).
+PII stage (M2.10b, below).
+
+Implementation (M2.10b, ADR-17): `pipeline`'s `PiiStageHandler` runs the stage in the stage
+transaction: latest text layer (`TEXT_LAYER_MISSING` without one) → `DocumentContext.of` →
+`PiiDetectors.detect` → `SpanMerger` → `TextRedactor` (mode from `invoice-intel.pii.mode`) →
+`ImageRedactor` → `RedactedPdf` (page size from `invoice-intel.text.dpi`) → `pii`'s
+`RedactionStore.save`. Page images: PDF-text pages are masked on their stored `PAGE_IMAGE`; OCR
+pages (scans and photos) on `ImagePreprocessor.preprocess` re-run on the stored `PAGE_IMAGE`, which
+is deterministic and gives the deskewed image the Text stage OCR'd, so no preprocessed image is
+stored. A page without a stored image fails with `PAGE_IMAGE_MISSING`; spans that don't fit the
+layer or an unreadable image with `REDACTION_FAILED`. `RedactionStore` (the only code that touches
+`pii_span`, `pii_vault` and the redacted `blob_ref` rows; `pii` depends on `spring-jdbc` and
+`storage` for it) writes one `pii_span` row per kept span with `TextRedactor.Result.replacements()`
+as `token` (the token, or the `[REDACTED:TYPE]` marker in redact mode and for PIN codes) and the
+union box of the span's words as `bbox`; inserts the vault entries with
+`ON CONFLICT (token) DO NOTHING`; and puts the masked pages and PDF under the §9.1 keys before
+upserting their `REDACTED_PAGE`/`REDACTED_PDF` rows. A failed run rolls every row back, so the
+document is `FAILED` with no spans, vault entries or redacted rows and no later stage runs; blobs
+written before the failure stay under their keys and are replaced by the next successful run, as
+with the Text stage's page images. There is no table for the redacted text: `extract` (M3.8) gets
+`RedactedContent` from a `pii` loader that rebuilds it from the text layer, `pii_span` rows and
+the redacted pages.
 
 Implementation (M2.6): `TextRedactor(tokens, vault).redact(layer, mergedSpans, ctx, mode)`
 returns `TextRedactor.Result(content, spans, vaultEntries)`; nothing is persisted (the PII stage,
@@ -690,6 +713,12 @@ while running, rolls its insert back with the stage transaction).
 run_no)` is unique, and a partial unique index allows one `RUNNING` run per document and stage.
 The current output of a stage is that of its latest `SUCCEEDED` run. V3 also limits
 `document.failed_stage` to the same stage names.
+
+`pii_span` and `pii_vault` (V5, M2.10b): `pii_span` has `run_no` (rows of every PII run are kept,
+the current ones are those of the latest `SUCCEEDED` run) and names its offsets `span_start` and
+`span_end` (`end` is an SQL keyword); `bbox` is `{x, y, w, h}` in the page's unit; `detector` and
+`token` are `TEXT` (a merged span's detector joins rule names with `+`). `pii_vault` is keyed by
+`token` only, shared by all documents, and rows are never updated.
 
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
@@ -984,6 +1013,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-14 | Synthetic invoice generator in `common` test fixtures (`java-test-fixtures`), PDFBox as a `testFixturesImplementation` dependency (owner decision 2026-10-28, M1.1) | A separate test-only `fixtures` module | Shared by every module's tests without a new module or any main-code dependency, so ArchUnit rules and the §4 module list stay unchanged. |
 | ADR-15 | NER model `onnx-community/distilbert-NER-ONNX` at `3a19fe9404a4469d91aa3d551558a97f68872f67` (int8 `onnx/model_quantized.onnx`, 65,772,734 bytes, SHA-256 `9419a876…a4e210d8`; ONNX export of `dslim/distilbert-NER`, English CoNLL-03, labels PER/ORG/LOC/MISC), downloaded by Gradle from huggingface.co at the pinned commit with every file's SHA-256 checked, cached outside the repo (owner decision 2026-10-28, M2.8). Licence: Apache-2.0 per the base model card (`dslim/distilbert-NER`); the conversion repo declares none. Measured on synthetic Indian names (threshold 0.5, all-caps words title-cased): word recall 88.7%, whole-name recall 85.3%, precision 91.3%; RSS +217 MB after load and inference (macOS arm64) | `Xenova/distilbert-base-multilingual-cased-ner-hrl` at `c2a4dbf593c57f47004c5bc2d3770d311aee9c43` (int8 `onnx/model_quantized.onnx`, 135,359,829 bytes, SHA-256 `24a0b98f…b2edb986`; export of `Davlan/distilbert-base-multilingual-cased-ner-hrl`, AFL-3.0 per the base card, conversion repo declares none): word recall 81.0%, whole-name recall 76.3%, precision 96.6%, RSS +396 MB peak. Thresholds 0.3/0.15 are in the benchmark report; both pins are in `pii/build.gradle.kts` | Recall is the costly error (specs §6.3): the English model finds more of the synthetic Indian names, at half the size and inside the ~300 MB budget (§10.1); the multilingual model is more precise but misses more names and exceeds the budget. Neither reaches 99% alone; NER backs up the rule and address-block layers (R3). |
 | ADR-16 | NER stays on in every environment: the Docker build stage downloads the pinned model (`:pii:stageNerModel`, SHA-256 checked) into the image at `/app/models/ner` (+~66 MB) and `app` tests/`bootRun` use the staged copy; PII beans are built at start-up (fail fast); CI and tests use throwaway Tink keysets, CI's built by `scripts/ci/stack-credentials.sh` with `openssl rand` (owner decision 2026-10-29, M2.10a) | Model-free image with `PII_NER=false` in `compose.ci.yaml` only; keysets from Tinkey in CI; building PII beans lazily on the first PII job | Turning NER off anywhere lowers recall (owner approval needed); a bundled model makes the image self-contained and smoke-tests the real start-up path. `openssl` is already on CI runners, so no new tool. Lazy beans would let a broken setup accept uploads that then fail in the PII stage. |
+| ADR-17 | PII stage outputs (owner decision 2026-10-29, M2.10b): `pii_span` rows per run and a shared `pii_vault` (insert-if-absent) written only by `pii`'s `RedactionStore`; OCR pages masked on the stored page image preprocessed again; no table for redacted text, `RedactedContent` rebuilt later from text layer + spans + redacted pages | Storing the preprocessed image as another blob kind; a `redacted_text` table | Preprocessing is deterministic, so a second image per page and a `blob_ref` kind change aren't needed; one source of truth for spans avoids redacted text drifting from them. |
 
 ---
 

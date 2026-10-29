@@ -10,8 +10,8 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.pipeline.PiiStageHandler;
 import dev.invoiceintel.pipeline.PipelineService;
-import dev.invoiceintel.pipeline.PlaceholderStageHandler;
 import dev.invoiceintel.pipeline.ReprocessNotAllowedException;
 import dev.invoiceintel.pipeline.Stage;
 import dev.invoiceintel.pipeline.StageFailedException;
@@ -24,8 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
@@ -33,8 +31,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * The stage chain on Postgres with a running JobRunr server (architecture.md §5.1, NFR-5). The Text
- * handler is stubbed to do nothing and PII is a placeholder, so a document without an original
- * walks RECEIVED → TEXT_READY → PII_CLEAN. The real Text stage is covered by {@link TextStageIT}.
+ * and PII handlers are stubbed to do nothing, so a document without an original walks RECEIVED →
+ * TEXT_READY → PII_CLEAN. The real stages are covered by {@link TextStageIT} and {@link
+ * PiiStageIT}.
  */
 @SpringBootTest(
     properties = {
@@ -45,8 +44,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @Import({
   TestcontainersConfiguration.class,
   TestAdminConfiguration.class,
-  TestPiiKeysConfiguration.class,
-  PipelineIT.PiiPlaceholder.class
+  TestPiiKeysConfiguration.class
 })
 class PipelineIT {
 
@@ -58,9 +56,13 @@ class PipelineIT {
   @MockitoSpyBean(name = "textStage")
   TextStageHandler textStage;
 
+  @MockitoSpyBean(name = "piiStage")
+  PiiStageHandler piiStage;
+
   @BeforeEach
-  void stubTextStage() {
+  void stubStages() {
     doNothing().when(textStage).run(any(), anyInt());
+    doNothing().when(piiStage).run(any(), anyInt());
   }
 
   @Test
@@ -205,15 +207,5 @@ class PipelineIT {
         .param(id.value())
         .query(String.class)
         .list();
-  }
-
-  /** A second placeholder stage, so the chain and reprocess-from-a-later-stage are covered. */
-  @TestConfiguration(proxyBeanMethods = false)
-  static class PiiPlaceholder {
-
-    @Bean
-    PlaceholderStageHandler piiStage() {
-      return new PlaceholderStageHandler(Stage.PII);
-    }
   }
 }

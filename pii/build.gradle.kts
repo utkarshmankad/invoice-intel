@@ -18,6 +18,10 @@ dependencies {
     api(project(":common"))
     // Detectors read the Text stage's TextLayer (architecture.md §4.1, §6.3).
     api(project(":text"))
+    // The PII stage stores spans, vault entries and redacted blobs; only pii touches the vault
+    // tables (architecture.md §4.1, §7, M2.10b). Text already brings both as api.
+    api(project(":storage"))
+    api(libs.spring.jdbc)
     // HMAC tokens and the AEAD vault (PII-3, PII-7, architecture.md §6.3, ADR-06).
     implementation(libs.tink)
     // NER layer (PII-2(b), architecture.md §6.3, ADR-15): ONNX Runtime and the tokenizers

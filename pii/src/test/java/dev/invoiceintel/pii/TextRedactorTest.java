@@ -68,6 +68,39 @@ class TextRedactorTest {
   }
 
   @Test
+  void redact_replacements_followSpanOrderWithTokenOrMarker() {
+    String pin = "560" + "001";
+    TextLayer layer = Layouts.page(line(40, 100, "PIN " + pin + " Phone: " + MOBILE));
+
+    TextRedactor.Result result =
+        redactor.redact(
+            layer,
+            List.of(span(layer, MOBILE, PiiType.PHONE), span(layer, pin, PiiType.PIN_CODE)),
+            CTX,
+            RedactionMode.PSEUDONYMIZE);
+
+    assertThat(result.spans())
+        .extracting(PiiSpan::type)
+        .containsExactly(PiiType.PIN_CODE, PiiType.PHONE);
+    assertThat(result.replacements())
+        .containsExactly("[REDACTED:PIN_CODE]", tokens.token(PiiType.PHONE, MOBILE));
+  }
+
+  @Test
+  void result_replacementCountDiffersFromSpans_isRejected() {
+    TextLayer layer = Layouts.page(line(40, 100, "Phone: " + MOBILE));
+    TextRedactor.Result result =
+        redactor.redact(
+            layer, List.of(span(layer, MOBILE, PiiType.PHONE)), CTX, RedactionMode.PSEUDONYMIZE);
+
+    assertThatThrownBy(
+            () ->
+                new TextRedactor.Result(
+                    result.content(), result.spans(), List.of(), result.vaultEntries()))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void redact_unaffectedWords_keepTextAndBoxExactly() {
     TextLayer layer = Layouts.page(line(40, 100, "Phone: " + MOBILE + " thanks"));
     List<Word> original = layer.pages().getFirst().words();
