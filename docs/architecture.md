@@ -595,6 +595,17 @@ not written yet allow an empty match. A deliberate violation in `extract` (an `L
 | `VISION` | Redacted page images | Scans, photos, table-heavy layouts |
 | `HYBRID` | Both | Hard documents; eval comparison |
 
+Implementation (M3.5): `ExtractionStrategy` (`TEXT`, `VISION`, `HYBRID`) is a field of
+`ExtractionRequest` (the four-argument constructor means `TEXT`), so each run or eval call picks
+it. Each strategy names the `ModelCapability`s it needs (`HYBRID` needs both); the gateway rejects
+a model without them before any call. `ModelInput` builds the user message from `RedactedContent`
+only: the line-marked text (below), the masked PNG of every page (`RedactedContent.Page.image()`,
+PII-5) as Spring AI `Media` in page order with a note mapping image to page number, or both. A
+vision strategy on a page without a masked image fails the request (`IllegalArgumentException`);
+it never falls back to another image. Each strategy has its own prompt
+(`ExtractionStrategy.defaultPrompt()`): `invoice-extraction/v1`, `invoice-extraction-vision/v1`
+(evidence is the page only, no line markers), `invoice-extraction-hybrid/v1`.
+
 **Structured output (EXT-1):** Java records mirror the spec §5 schema
 (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field<T>{value, confidence, evidence}`).
 Spring AI structured output generates the JSON schema from the records; responses are
@@ -642,10 +653,10 @@ up by name or capability and rejects duplicate names. An empty list is valid unt
 (`spring-ai-model`, BOM 2.0.x) and takes a chat client per provider name (`ModelSpec.provider`);
 building those clients from config is M3.8's wiring, so no provider module is a main dependency
 yet (tests use `spring-ai-ollama` against WireMock). `ExtractionRequest<T>(model, prompt,
-instructions, outputType)` names a registry model, a `PromptRef(name, version)` and the output
-record; the system message is the instructions plus `BeanOutputConverter`'s schema, the user
-message is the line-marked text of the `TEXT` strategy (M3.4, below). The model ID is set on the client's
-own options type (`client.getOptions().mutate()`), since Spring AI 2.0 providers reject generic
+instructions, outputType, strategy)` names a registry model, a `PromptRef(name, version)`, the
+output record and the strategy; the system message is the instructions plus
+`BeanOutputConverter`'s schema, the user message is the strategy's input (M3.4 line-marked text;
+M3.5 page images, above). The model ID is set on the client's own options type (`client.getOptions().mutate()`), since Spring AI 2.0 providers reject generic
 `ChatOptions`. A response that fails to parse or fails Bean Validation gets one repair call
 carrying the error; a second failure gives `LlmResult.Failed` with `LLM_INVALID_OUTPUT`, a
 provider exception `LLM_ERROR` (no extra retry beyond the client's own). Every call, including

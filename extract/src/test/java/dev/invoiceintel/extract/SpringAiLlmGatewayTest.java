@@ -3,6 +3,8 @@ package dev.invoiceintel.extract;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
+import static com.github.tomakehurst.wiremock.client.WireMock.notContaining;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
@@ -20,11 +22,18 @@ import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +45,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The gateway against a real Spring AI client (Ollama) talking to WireMock: success, repair retry
- * and failure (M3.3). Stub responses are written by hand; no real LLM is called (testing.md).
+ * and failure (M3.3), and the TEXT, VISION and HYBRID inputs (M3.5). Stub responses are written by
+ * hand; no real LLM is called (testing.md).
  */
 class SpringAiLlmGatewayTest {
 
@@ -89,7 +99,14 @@ class SpringAiLlmGatewayTest {
                     "example-local-8b",
                     Set.of(ModelCapability.TEXT),
                     new BigDecimal("2.00"),
-                    new BigDecimal("8.00"))));
+                    new BigDecimal("8.00")),
+                new ModelSpec(
+                    "local-vision",
+                    "ollama",
+                    "example-local-vl-7b",
+                    Set.of(ModelCapability.TEXT, ModelCapability.VISION),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO)));
     return new SpringAiLlmGateway(
         registry,
         clients,
@@ -285,8 +302,128 @@ class SpringAiLlmGatewayTest {
 
     wireMock.verify(
         postRequestedFor(urlEqualTo("/api/chat"))
+            .withRequestBody(matchingJsonPath("$.model", equalTo("example-local-8b"))));
+  }
+
+  /** A synthetic 2×2 PNG standing in for a masked page image (no document content). */
+  private static byte[] png(int rgb) {
+    var image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+    image.setRGB(0, 0, rgb);
+    var out = new ByteArrayOutputStream();
+    try {
+      ImageIO.write(image, "png", out);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return out.toByteArray();
+  }
+
+  private RedactedContent twoPagesWithImages(byte[] first, byte[] second) {
+    return RedactedContentFixtures.withImages(
+        RedactedContentFixtures.of(
+            documentId, List.of("Invoice INV-TOKEN-1", "Grand Total 1180.00")),
+        Arrays.asList(first, second));
+  }
+
+  private static ExtractionRequest<Totals> request(ExtractionStrategy strategy) {
+    return new PromptLoader()
+        .request("local-vision", PROMPT, Map.of("currency", "INR"), Totals.class, strategy);
+  }
+
+  private static void stubValid() {
+    stubChat(
+        Scenario.STARTED,
+        null,
+        chatResponse("{\"invoiceNumber\":\"INV-TOKEN-1\",\"grandTotal\":1180.00}", 3000, 50));
+  }
+
+  @Test
+  void extract_vision_sendsMaskedPageImagesWithoutText() {
+    byte[] first = png(0x000000);
+    byte[] second = png(0xFFFFFF);
+    stubValid();
+
+    LlmResult<Totals> result =
+        gateway.extract(twoPagesWithImages(first, second), request(ExtractionStrategy.VISION));
+
+    assertThat(result).isInstanceOf(LlmResult.Succeeded.class);
+    assertThat(recorded)
+        .singleElement()
+        .extracting(LlmCall::modelId)
+        .isEqualTo("example-local-vl-7b");
+    wireMock.verify(
+        postRequestedFor(urlEqualTo("/api/chat"))
             .withRequestBody(
-                com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath(
-                    "$.model", equalTo("example-local-8b"))));
+                matchingJsonPath(
+                    "$.messages[1].images[0]", equalTo(Base64.getEncoder().encodeToString(first))))
+            .withRequestBody(
+                matchingJsonPath(
+                    "$.messages[1].images[1]", equalTo(Base64.getEncoder().encodeToString(second))))
+            .withRequestBody(
+                matchingJsonPath(
+                    "$.messages[1].content",
+                    equalTo(
+                        "Attached are 2 page image(s) in page order: image 1 is page 1, image 2"
+                            + " is page 2.")))
+            .withRequestBody(notContaining("[p1:l1]")));
+  }
+
+  @Test
+  void extract_hybrid_sendsMarkedTextAndImages() {
+    byte[] first = png(0x000000);
+    byte[] second = png(0xFFFFFF);
+    stubValid();
+
+    LlmResult<Totals> result =
+        gateway.extract(twoPagesWithImages(first, second), request(ExtractionStrategy.HYBRID));
+
+    assertThat(result).isInstanceOf(LlmResult.Succeeded.class);
+    wireMock.verify(
+        postRequestedFor(urlEqualTo("/api/chat"))
+            .withRequestBody(
+                matchingJsonPath(
+                    "$.messages[1].content",
+                    containing("[p1:l1] Invoice INV-TOKEN-1\n[p2:l1] Grand Total 1180.00\n\n")))
+            .withRequestBody(
+                matchingJsonPath("$.messages[1].content", containing("image 2 is page 2")))
+            .withRequestBody(
+                matchingJsonPath(
+                    "$.messages[1].images[1]",
+                    equalTo(Base64.getEncoder().encodeToString(second)))));
+  }
+
+  @Test
+  void extract_text_sendsNoImagesEvenWhenPagesHaveThem() {
+    byte[] image = png(0x123456);
+    stubValid();
+
+    gateway.extract(twoPagesWithImages(image, image), request(ExtractionStrategy.TEXT));
+
+    wireMock.verify(
+        postRequestedFor(urlEqualTo("/api/chat"))
+            .withRequestBody(containing("[p2:l1] Grand Total 1180.00"))
+            .withRequestBody(notContaining(Base64.getEncoder().encodeToString(image))));
+  }
+
+  @Test
+  void extract_visionPageWithoutMaskedImage_isRejectedBeforeAnyCall() {
+    RedactedContent missing = twoPagesWithImages(png(0), null);
+
+    assertThatThrownBy(() -> gateway.extract(missing, request(ExtractionStrategy.VISION)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("page 2 has no redacted image");
+    assertThat(recorded).isEmpty();
+    wireMock.verify(0, postRequestedFor(urlEqualTo("/api/chat")));
+  }
+
+  @Test
+  void extract_visionOnTextOnlyModel_isRejected() {
+    var vision =
+        new ExtractionRequest<>("local-text", PROMPT, "x", Totals.class, ExtractionStrategy.VISION);
+
+    assertThatThrownBy(() -> gateway.extract(content, vision))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support strategy VISION");
+    assertThat(recorded).isEmpty();
   }
 }
