@@ -1,6 +1,6 @@
 # Invoice Intel — Deployment Plan
 
-> Status: **Planned (Phase 2)** · Last updated: 2026-10-28
+> Status: **Planned (Phase 2)** · Last updated: 2026-10-30
 >
 > v1 runs on the developer laptop (see `specs.md` §8.2). This document records how the
 > system moves to Fly.io later, so Phase 1 decisions stay compatible with it.
@@ -96,6 +96,9 @@ Rules: secrets never go in `fly.toml`, the repo, logs, or the image.
 their defaults point at the local compose stack, so on Fly every one of them must be set.
 JobRunr (`jobrunr.*`) needs no extra variables: it uses the same datasource and creates its own
 tables on start (architecture.md §10).
+The PII stage reads `TOKEN_KEYSET` and `VAULT_KEYSET` at start-up and the app doesn't start
+without them; the image sets `NER_MODEL_DIR=/app/models/ner` (the pinned NER model is baked in,
+ADR-16), so it needs no setting on Fly.
 The Text stage's `TESSDATA_PATH` defaults to the image's Tesseract data
 (`/usr/share/tesseract-ocr/5/tessdata`), so it needs no setting on Fly. The image starts Java
 with `--enable-native-access=ALL-UNNAMED` for Tess4J and OpenCV (M1.10).

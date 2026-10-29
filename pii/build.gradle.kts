@@ -142,6 +142,14 @@ tasks.register("downloadNerModel") {
     dependsOn(nerDownloads.getValue(chosenNerModel))
 }
 
+// The chosen model at a fixed path, for the Docker image and the app's tests and bootRun
+// (architecture.md §10, M2.10a), so they don't need to know the cache layout or the pin.
+tasks.register<Sync>("stageNerModel") {
+    description = "Copies the chosen NER model to build/ner-model (ADR-15)."
+    from(nerDownloads.getValue(chosenNerModel))
+    into(layout.buildDirectory.dir("ner-model"))
+}
+
 // DJL must never download anything at run time (natives come from the jars, ADR-15).
 fun Test.useNerModels(names: List<String>) {
     names.forEach { dependsOn(nerDownloads.getValue(it)) }

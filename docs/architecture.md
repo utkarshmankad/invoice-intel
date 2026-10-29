@@ -1,6 +1,6 @@
 # Invoice Intel — Architecture
 
-> Status: Draft v0.1 · Last updated: 2026-10-28
+> Status: Draft v0.1 · Last updated: 2026-10-30
 >
 > This document defines **how** the system is built. Requirements and their IDs
 > (`PII-1`, `VAL-5`, …) come from `specs.md`; every design element below points back to them.
@@ -453,6 +453,14 @@ with `InvoiceIntelProperties.Pii.toSettings()`.
   `VAULT_KEYSET` (AEAD, e.g. `AES256_GCM`). Error messages name the variable only and don't
   chain Tink's exceptions. Rotating `TOKEN_KEYSET` changes every token, so it is not rotated
   once tokens are stored. Tink 1.24.0 (Maven Central, checked 2026-10-28).
+- **Start-up wiring (M2.10a, ADR-16):** `app`'s `PiiConfiguration` builds `PiiSettings`
+  (`Pii.toSettings()`), `PiiDetectors` (loads the NER model when that layer is on),
+  `TokenGenerator` and `PiiVault` as beans at start-up, so a bad `invoice-intel.pii.*` setup,
+  a missing model directory or a missing keyset stops the app before it takes a document.
+  Keysets come from the process environment; a `PiiKeyEnvironment` bean replaces it in tests,
+  which build throwaway keysets in-process with Tink. CI's compose stack gets throwaway keysets
+  from `scripts/ci/stack-credentials.sh` (built with `openssl rand` from the key protos' fixed
+  layout, new every run, never stored).
 - **Order-history import** passes order numbers through the same tokenizer, so
   reconciliation joins on tokens.
 - Redact mode: same spans, but replaced by fixed `[REDACTED:TYPE]` text and no vault entry,
@@ -789,8 +797,15 @@ local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.mod
   when that module gets Spring wiring; `pipeline` and `llm` are added by the tasks that use
   them. `pii` reads `PII_MODE` (default `pseudonymize`) and `NER_MODEL_DIR` (default empty);
   the cross-field checks (a layer on, NER model directory, loopback local LLM) run in
-  `PiiSettings` when `Pii.toSettings()` is called, i.e. when the PII stage is wired (M2.10), so
-  start-up doesn't need a NER model yet. `app` depends on `pii` for these types (§4.1).
+  `PiiSettings` when `Pii.toSettings()` is called at start-up (M2.10a, §6.3), and
+  `TOKEN_KEYSET`/`VAULT_KEYSET` are read from the process environment then, so start-up fails
+  without them. `app` depends on `pii` for these types (§4.1).
+- NER model directory: `:pii:stageNerModel` copies the pinned model (ADR-15) to
+  `pii/build/ner-model`. The Docker image has it at `/app/models/ner` (`ENV NER_MODEL_DIR`);
+  `app`'s tests and `bootRun` get the staged copy through the system property
+  `invoice-intel.pii.ner.model-dir`, with `ai.djl.offline=true` everywhere (ADR-16). Local runs
+  export `TOKEN_KEYSET` and `VAULT_KEYSET` in the shell (`.env` is a Spring property source, not
+  the process environment).
 - Actuator exposes only `/actuator/health` over HTTP, without details.
 - JobRunr (`jobrunr.*`, M1.4) uses the app's datasource and creates its own tables. The
   background job server is on in `application.yaml` and off in `application-test.yaml`, so only
@@ -968,6 +983,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-13 | Structured logs use Spring Boot's built-in ECS JSON formatter; the PII backstop is a `StructuredLoggingJsonMembersCustomizer` value processor, not a Logback filter (M0.8) | Logback `Filter` (can only accept or drop events, not rewrite them); `logstash-logback-encoder` with a masking decorator | Built into Boot, no new dependency, and the value processor reaches every string field including MDC and stack traces. Masking applies only to the JSON output, so plain-text console logging must not be re-enabled. |
 | ADR-14 | Synthetic invoice generator in `common` test fixtures (`java-test-fixtures`), PDFBox as a `testFixturesImplementation` dependency (owner decision 2026-10-28, M1.1) | A separate test-only `fixtures` module | Shared by every module's tests without a new module or any main-code dependency, so ArchUnit rules and the §4 module list stay unchanged. |
 | ADR-15 | NER model `onnx-community/distilbert-NER-ONNX` at `3a19fe9404a4469d91aa3d551558a97f68872f67` (int8 `onnx/model_quantized.onnx`, 65,772,734 bytes, SHA-256 `9419a876…a4e210d8`; ONNX export of `dslim/distilbert-NER`, English CoNLL-03, labels PER/ORG/LOC/MISC), downloaded by Gradle from huggingface.co at the pinned commit with every file's SHA-256 checked, cached outside the repo (owner decision 2026-10-28, M2.8). Licence: Apache-2.0 per the base model card (`dslim/distilbert-NER`); the conversion repo declares none. Measured on synthetic Indian names (threshold 0.5, all-caps words title-cased): word recall 88.7%, whole-name recall 85.3%, precision 91.3%; RSS +217 MB after load and inference (macOS arm64) | `Xenova/distilbert-base-multilingual-cased-ner-hrl` at `c2a4dbf593c57f47004c5bc2d3770d311aee9c43` (int8 `onnx/model_quantized.onnx`, 135,359,829 bytes, SHA-256 `24a0b98f…b2edb986`; export of `Davlan/distilbert-base-multilingual-cased-ner-hrl`, AFL-3.0 per the base card, conversion repo declares none): word recall 81.0%, whole-name recall 76.3%, precision 96.6%, RSS +396 MB peak. Thresholds 0.3/0.15 are in the benchmark report; both pins are in `pii/build.gradle.kts` | Recall is the costly error (specs §6.3): the English model finds more of the synthetic Indian names, at half the size and inside the ~300 MB budget (§10.1); the multilingual model is more precise but misses more names and exceeds the budget. Neither reaches 99% alone; NER backs up the rule and address-block layers (R3). |
+| ADR-16 | NER stays on in every environment: the Docker build stage downloads the pinned model (`:pii:stageNerModel`, SHA-256 checked) into the image at `/app/models/ner` (+~66 MB) and `app` tests/`bootRun` use the staged copy; PII beans are built at start-up (fail fast); CI and tests use throwaway Tink keysets, CI's built by `scripts/ci/stack-credentials.sh` with `openssl rand` (owner decision 2026-10-29, M2.10a) | Model-free image with `PII_NER=false` in `compose.ci.yaml` only; keysets from Tinkey in CI; building PII beans lazily on the first PII job | Turning NER off anywhere lowers recall (owner approval needed); a bundled model makes the image self-contained and smoke-tests the real start-up path. `openssl` is already on CI runners, so no new tool. Lazy beans would let a broken setup accept uploads that then fail in the PII stage. |
 
 ---
 

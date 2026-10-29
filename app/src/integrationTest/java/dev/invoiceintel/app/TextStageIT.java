@@ -50,7 +50,11 @@ import org.springframework.test.context.ActiveProfiles;
       "jobrunr.background-job-server.poll-interval-in-seconds=5"
     })
 @ActiveProfiles("test")
-@Import({TestcontainersConfiguration.class, TestAdminConfiguration.class})
+@Import({
+  TestcontainersConfiguration.class,
+  TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class
+})
 class TextStageIT {
 
   private static final Duration TIMEOUT = Duration.ofSeconds(90);

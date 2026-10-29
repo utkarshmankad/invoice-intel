@@ -45,6 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @Import({
   TestcontainersConfiguration.class,
   TestAdminConfiguration.class,
+  TestPiiKeysConfiguration.class,
   PipelineIT.PiiPlaceholder.class
 })
 class PipelineIT {

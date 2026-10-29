@@ -24,6 +24,9 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?run scripts/ci/stack-credentials.sh}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?run scripts/ci/stack-credentials.sh}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?run scripts/ci/stack-credentials.sh}
+      # Throwaway PII keysets (PII-7); the image sets NER_MODEL_DIR.
+      TOKEN_KEYSET: ${TOKEN_KEYSET:?run scripts/ci/stack-credentials.sh}
+      VAULT_KEYSET: ${VAULT_KEYSET:?run scripts/ci/stack-credentials.sh}
     ports:
       - "127.0.0.1:8080:8080"
     # The 2 GB budget of §10.1: an out-of-memory regression fails smoke or performance (NFR-10).
