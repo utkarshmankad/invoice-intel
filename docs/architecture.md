@@ -573,6 +573,18 @@ mode and page/word counts only (PII-8). M2.7 adds the masked page image (`Page.i
 copy, empty until `ImageRedactor` ran); page/line markers for the
 `TEXT` strategy are built by `extract` (M3) from the word boxes.
 
+Enforcement (M2.11): `app`'s ArchUnit tests import every module's main classes.
+`ModuleDependencyRulesTest` holds the §4.1 layers (with one exception: `extract` may use
+`text.Word`, which `RedactedContent.Page.words()` returns) and lets `extract` use only
+`RedactedContent` and `RedactedContent.Page` from `pii`. `PiiGateRulesTest` adds: `extract` uses
+nothing else from `text` (no `TextLayer`/`TextPage`) and nothing from `storage` (no blob keys);
+no method of a class named `LlmGateway` takes a `String`, `byte[]`, `TextLayer`, `TextPage` or
+`BlobKey`; every constructor of `RedactedContent` and `RedactedContent.Page` is package-private or
+private; no class outside `pii` uses `pii.internal` (the vault and span repositories) or calls
+`PiiVault.open`. Only Spring AI use outside `extract` was checked before (M0.4). Rules on code
+not written yet allow an empty match. A deliberate violation in `extract` (an `LlmGateway` taking a
+`String`, using `TextLayer` and opening the vault) failed five rules before it was removed.
+
 ### 6.5 Extract (`extract`)
 
 **Strategies (EXT-2)**, chosen per run by config or eval flag:
