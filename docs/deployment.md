@@ -86,6 +86,7 @@ Set a spending alert or limit on every paid account before the first deploy.
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Object storage | `fly secrets set` |
 | `S3_BUCKET_RAW`, `S3_BUCKET_REDACTED` | Bucket names | `fly.toml` `[env]` |
 | `LLM_*_API_KEY` | LLM provider keys | `fly secrets set` |
+| `LLM_EXTRACTION_MODEL`, `LLM_EXTRACTION_STRATEGY` | Registry model and strategy of the Extract stage (blank model: stage off, documents stop in `PII_CLEAN`); `LLM_ANTHROPIC_MODEL_ID`, `LLM_OLLAMA_MODEL_ID`, `LLM_OLLAMA_BASE_URL` override the defaults in `application.yaml` (architecture.md §10, ADR-18). The Anthropic key is `LLM_ANTHROPIC_API_KEY` | `fly.toml` `[env]` |
 | `VAULT_KEYSET` | Encryption key for the PII vault (Tink AEAD JSON keyset) | `fly secrets set` |
 | `TOKEN_KEYSET` | Key for deterministic PII tokens (Tink `HMAC_SHA256_256BITTAG_RAW` JSON keyset); never rotated once tokens are stored | `fly secrets set` |
 | `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` (or OAuth settings) | Login; user defaults to `admin`, password is required | `fly secrets set` |

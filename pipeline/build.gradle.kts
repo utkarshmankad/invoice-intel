@@ -14,5 +14,9 @@ dependencies {
     implementation(project(":text"))
     // The PII stage handler runs the pii module (PII-1..5, architecture.md §5.2, §6.3).
     implementation(project(":pii"))
+    // The Extract stage handler calls the LLM gateway (EXT-1..5, architecture.md §5.2, §6.5).
+    implementation(project(":extract"))
+    // ExtractStageConfiguration is on only when an extraction model is configured.
+    implementation(libs.spring.boot.autoconfigure)
     implementation(libs.slf4j.api)
 }

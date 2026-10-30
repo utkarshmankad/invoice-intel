@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,11 @@ public final class SpringAiLlmGateway implements LlmGateway {
     this.callLog = Objects.requireNonNull(callLog, "callLog");
   }
 
+  /** The providers this gateway has a client for. */
+  public Set<String> providers() {
+    return clients.keySet();
+  }
+
   @Override
   public <T> LlmResult<T> extract(RedactedContent content, ExtractionRequest<T> request) {
     Objects.requireNonNull(content, "content");
@@ -88,6 +94,7 @@ public final class SpringAiLlmGateway implements LlmGateway {
     ChatOptions options = client.getOptions().mutate().model(model.modelId()).build();
 
     var calls = new ArrayList<LlmCall>();
+    var responses = new ArrayList<String>();
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       long started = System.nanoTime();
       ChatResponse response;
@@ -100,16 +107,17 @@ public final class SpringAiLlmGateway implements LlmGateway {
         calls.add(call(content, request, model, attempt, null, started, LlmOutcome.ERROR));
         callLog.record(calls.getLast());
         log.warn("LLM call failed");
-        return new LlmResult.Failed<>(LlmResult.Failed.ERROR, calls);
+        return new LlmResult.Failed<>(LlmResult.Failed.ERROR, calls, responses);
       }
       String raw = text(response);
+      responses.add(raw);
       Parsed<T> parsed = parse(converter, raw);
       LlmOutcome outcome =
           parsed.value() != null ? LlmOutcome.SUCCEEDED : LlmOutcome.INVALID_OUTPUT;
       calls.add(call(content, request, model, attempt, response, started, outcome));
       callLog.record(calls.getLast());
       if (parsed.value() != null) {
-        return new LlmResult.Succeeded<>(parsed.value(), calls);
+        return new LlmResult.Succeeded<>(parsed.value(), calls, responses);
       }
       log.info("LLM output invalid");
       String error = parsed.error();
@@ -121,7 +129,7 @@ public final class SpringAiLlmGateway implements LlmGateway {
                   + error
                   + "\nReply again with only the JSON object, following the schema."));
     }
-    return new LlmResult.Failed<>(LlmResult.Failed.INVALID_OUTPUT, calls);
+    return new LlmResult.Failed<>(LlmResult.Failed.INVALID_OUTPUT, calls, responses);
   }
 
   private static String text(ChatResponse response) {

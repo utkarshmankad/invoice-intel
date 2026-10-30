@@ -1,0 +1,27 @@
+{
+  "documentClass": {"value": "TAX_INVOICE", "confidence": 0.95, "source": "LLM"},
+  "invoiceNumber": {"value": "INVNO_TOKEN_01", "confidence": 0.9, "source": "LLM",
+                    "evidence": {"page": 1, "lineRefs": ["p1:l1"]}},
+  "invoiceDate": {"value": "2025-03-14", "confidence": 0.9, "source": "LLM"},
+  "orderNumber": {"value": "ORDNO_TOKEN_01", "confidence": 0.9, "source": "LLM"},
+  "sellerName": {"value": "Example Traders", "confidence": 0.8, "source": "LLM"},
+  "buyerState": {"value": "Maharashtra", "confidence": 0.8, "source": "LLM"},
+  "currency": {"value": "INR", "confidence": 1.0, "source": "LLM"},
+  "subtotal": {"value": 100.00, "confidence": 0.9, "source": "LLM"},
+  "totalTax": {"value": 18.00, "confidence": 0.9, "source": "LLM"},
+  "grandTotal": {"value": 118.00, "confidence": 0.9, "source": "LLM"},
+  "lineItems": [{
+    "lineNo": {"value": 1, "confidence": 1.0, "source": "LLM"},
+    "chargeType": {"value": "PRODUCT", "confidence": 0.9, "source": "LLM"},
+    "description": {"value": "Steel water bottle", "confidence": 0.9, "source": "LLM"},
+    "unitPrice": {"value": 100.00, "confidence": 0.9, "source": "LLM"},
+    "quantity": {"value": 1, "confidence": 0.9, "source": "LLM"},
+    "netAmount": {"value": 100.00, "confidence": 0.9, "source": "LLM"},
+    "taxLines": [{
+      "type": {"value": "IGST", "confidence": 0.9, "source": "LLM"},
+      "rate": {"value": 18, "confidence": 0.9, "source": "LLM"},
+      "amount": {"value": 18.00, "confidence": 0.9, "source": "LLM"}
+    }],
+    "lineTotal": {"value": 118.00, "confidence": 0.9, "source": "LLM"}
+  }]
+}

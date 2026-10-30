@@ -1,6 +1,7 @@
 package dev.invoiceintel.pii.internal;
 
 import dev.invoiceintel.common.DocumentId;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -43,5 +44,26 @@ public final class PiiSpanRepository {
             row.detector(),
             row.token())
         .update();
+  }
+
+  /** The rows of PII run {@code runNo} of a document, by page and start offset. */
+  public List<Row> findByRun(DocumentId documentId, int runNo) {
+    return jdbc.sql(
+            """
+            SELECT page_no, span_start, span_end, bbox, type, detector, token FROM pii_span
+            WHERE document_id = ? AND run_no = ? ORDER BY page_no, span_start
+            """)
+        .params(documentId.value(), runNo)
+        .query(
+            (rs, row) ->
+                new Row(
+                    rs.getInt("page_no"),
+                    rs.getInt("span_start"),
+                    rs.getInt("span_end"),
+                    JSON.readValue(rs.getString("bbox"), Box.class),
+                    rs.getString("type"),
+                    rs.getString("detector"),
+                    rs.getString("token")))
+        .list();
   }
 }

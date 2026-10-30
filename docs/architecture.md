@@ -49,7 +49,7 @@ Nothing else.
 | Language / runtime | Java 25 (LTS) | Virtual threads for I/O-bound stages (LLM, storage). |
 | Framework | Spring Boot 4.x (4.1.2 chosen in M0.1) | Boot 4 + Java 25 confirmed compatible with the key libraries on 2026-10-28; versions in ADR-01. |
 | Build | Gradle, Kotlin DSL, multi-module, version catalog (`gradle/libs.versions.toml`) | Exact versions pinned there, not in this doc. |
-| LLM client | Spring AI (`ChatClient`, structured output, multimodal messages) | Providers configured per profile (EXT-3, NFR-8). |
+| LLM client | Spring AI (`ChatModel`, structured output, multimodal messages); providers `spring-ai-ollama` (local) and `spring-ai-anthropic` (cloud, ADR-18) | Providers configured per profile (EXT-3, NFR-8). |
 | File type detection | Apache Tika (core only) | ING-3 |
 | PDF text, rendering, rebuilding | Apache PDFBox 3.x | TXT-2, PII-4 |
 | OCR | Tess4J (Tesseract + Leptonica native libs) | TXT-1, TXT-2 |
@@ -143,8 +143,10 @@ Implementation (M1.4), in `pipeline`:
 - A stage is a `StageHandler` bean. Every handler bean joins the chain; a stage with no handler
   ends it, so a document stops in the last state that has one. Since M1.10 the Text handler is
   `TextStageHandler` (§6.2) and since M2.10b the PII handler is `PiiStageHandler` (§6.3), so
-  documents now stop in `PII_CLEAN`; `PlaceholderStageHandler` remains for tests of stages not
-  built yet.
+  documents stopped in `PII_CLEAN`. Since M3.8 the Extract handler is `ExtractStageHandler`
+  (§6.5), on only when `invoice-intel.llm.extraction.model` is set, so documents stop in
+  `EXTRACTED` (or in `PII_CLEAN` with no model configured); `PlaceholderStageHandler` remains for
+  tests of stages not built yet.
 - `PipelineService.start` enqueues a `StageJob` (JobRunr `JobRequest` holding the document ID and
   stage only, since JobRunr stores it as JSON and shows it on its dashboard; PII-8).
   `StageJobHandler` runs it in three transactions, each first locking the document row
@@ -552,7 +554,8 @@ least 6 digits also matches inside a run of digits that only spaces or punctuati
 put in an exception; an entry that doesn't decrypt throws (fail closed). On a leak the
 `LeakChecker.Listener` is called with the document ID and types; `app` (`PipelineConfiguration`)
 increments the `invoice.pii.leak` counter (§12) and logs an error with `documentId` and
-`piiTypes` only. The caller (Extract stage, M3.8) throws `StageFailedException(PII_LEAK)`, so
+`piiTypes` only. The caller (`ExtractStageHandler`, M3.8) checks the raw text of every model
+response, the repair retry and invalid answers included, and throws `StageFailedException(PII_LEAK)`, so
 the document becomes `FAILED` in `EXTRACT` with `failure_code = PII_LEAK` and nothing of the
 response is stored. Values without a vault entry (PIN codes, redact mode) are not yet checked
 (plan.md Follow-ups).
@@ -669,8 +672,8 @@ up by name or capability and rejects duplicate names. An empty list is valid unt
 
 **Gateway (M3.3):** `SpringAiLlmGateway` implements `LlmGateway` on Spring AI's `ChatModel`
 (`spring-ai-model`, BOM 2.0.x) and takes a chat client per provider name (`ModelSpec.provider`);
-building those clients from config is M3.8's wiring, so no provider module is a main dependency
-yet (tests use `spring-ai-ollama` against WireMock). `ExtractionRequest<T>(model, prompt,
+building those clients from config is M3.8's wiring (`LlmClients`, below; tests run the real
+clients against WireMock). `ExtractionRequest<T>(model, prompt,
 instructions, outputType, strategy)` names a registry model, a `PromptRef(name, version)`, the
 output record and the strategy; the system message is the instructions plus
 `BeanOutputConverter`'s schema, the user message is the strategy's input (M3.4 line-marked text;
@@ -696,6 +699,25 @@ unknown ones are ignored. When cited lines span pages, those on the model's `pag
 first cited page. If no marker resolves, the box is cleared and the model's page kept. `RULE`
 and `HUMAN` evidence and `lineRefs` are left as they are. The extract stage (M3.8) calls it on
 the parsed result before storing it.
+
+**Extract stage (M3.8):** `ExtractConfiguration` (in `extract`) and `ExtractStageConfiguration`
+(in `pipeline`) are found by the app's component scan, since `app` may not use `extract` types
+(§4.1); both are on only when `invoice-intel.llm.extraction.model` is set, and every bean is
+built at start-up. `LlmClients` builds one Spring AI `ChatModel` per provider used by the
+registry: `ollama` (`OllamaChatModel`, `invoice-intel.llm.ollama.base-url`) and `anthropic`
+(`AnthropicChatModel` on the Anthropic Java SDK, base URL, API key, `max-tokens` and `timeout`
+from `invoice-intel.llm.anthropic.*`; no client without a key); any other provider name fails
+start-up (ADR-18). `InvoiceExtractor` holds the configured model and strategy, rejects at
+start-up a model that isn't registered, lacks the strategy's capabilities or has no client,
+renders the strategy's prompt once, calls the gateway and runs `EvidenceMapper` on a valid
+result. `LlmResult.responses()` hands back the raw text of every response (never logged, stored
+or printed). `ExtractStageHandler` loads the `RedactedContent` of the latest `SUCCEEDED` PII run
+with `pii`'s `RedactedContentLoader` (text layer + that run's `pii_span` rows replaced exactly as
+`TextRedactor` does + `REDACTED_PAGE` images; missing pieces → `REDACTED_CONTENT_MISSING`), runs
+the extractor, leak-checks every response (`PII_LEAK`) before anything is stored, fails with the
+gateway's code (`LLM_INVALID_OUTPUT`, `LLM_ERROR`) or writes the `extraction` row
+(`ExtractionStore`). The handler runs in the stage transaction, so the `llm_call` rows of a failed
+run roll back with it (plan.md Follow-ups).
 
 ### 6.6 Validate (`validate`)
 
@@ -821,6 +843,12 @@ the current ones are those of the latest `SUCCEEDED` run) and names its offsets 
 `SUCCEEDED`, `INVALID_OUTPUT` or `ERROR`, `cost_usd` is `NUMERIC(12,6)`; `stage` uses the
 `stage_run` names; rows cascade-delete with their document. No prompt or response text.
 
+`extraction` (V7, M3.8): one row per succeeded Extract run, unique `(document_id, run_no)`;
+`strategy` is `TEXT`, `VISION` or `HYBRID`, `model_id` the provider's model ID, `prompt_version`
+`PromptRef.id()`, `result` the `InvoiceExtraction` JSON (pseudonymized values only, written after
+the leak check passed); rows cascade-delete with their document. The current extraction is that
+of the latest `SUCCEEDED` Extract run.
+
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
 document.
@@ -905,6 +933,8 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 `pipeline.*` (thresholds, concurrency), `pii.*` (`mode`, `detectors.{rules, address-block, ner,
 local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.models[]`,
 `llm.max-concurrent-calls.<provider>`, `llm.default-max-concurrent-calls` (M3.3),
+`llm.extraction.{model, strategy}`, `llm.ollama.base-url`, `llm.anthropic.{base-url, api-key,
+max-tokens, timeout}` (M3.8),
 `storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
 `max-concurrent-page-jobs`).
 
@@ -922,6 +952,13 @@ local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.mod
   runs in the root). `.env` is read as a properties file, so values are unquoted `KEY=value`.
 - `application-test.yaml`: Postgres comes from Testcontainers via `@ServiceConnection`
   (`TestcontainersConfiguration` in `app/src/integrationTest`).
+- `invoice-intel.llm.*` (M3.8): `application.yaml` registers `claude-sonnet` (provider
+  `anthropic`, model ID `LLM_ANTHROPIC_MODEL_ID`, default `claude-sonnet-5-5`, USD 2.00/10.00 per
+  million tokens, list price checked 2026-10-30) and `local` (provider `ollama`, model ID
+  `LLM_OLLAMA_MODEL_ID`, price 0), both text + vision. The Extract stage uses
+  `LLM_EXTRACTION_MODEL` (default blank: stage off) with `LLM_EXTRACTION_STRATEGY` (default
+  `text`). The Anthropic key comes only from `LLM_ANTHROPIC_API_KEY` (default empty); Ollama's
+  server from `LLM_OLLAMA_BASE_URL` (default loopback). Tests point the `local` model at WireMock.
 - The `fly` profile is added in Phase 2 (`deployment.md`).
 - The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
   (`storage`, `text`, `pii` so far), validated at start-up. A group moves into its own module
@@ -1116,6 +1153,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-15 | NER model `onnx-community/distilbert-NER-ONNX` at `3a19fe9404a4469d91aa3d551558a97f68872f67` (int8 `onnx/model_quantized.onnx`, 65,772,734 bytes, SHA-256 `9419a876…a4e210d8`; ONNX export of `dslim/distilbert-NER`, English CoNLL-03, labels PER/ORG/LOC/MISC), downloaded by Gradle from huggingface.co at the pinned commit with every file's SHA-256 checked, cached outside the repo (owner decision 2026-10-28, M2.8). Licence: Apache-2.0 per the base model card (`dslim/distilbert-NER`); the conversion repo declares none. Measured on synthetic Indian names (threshold 0.5, all-caps words title-cased): word recall 88.7%, whole-name recall 85.3%, precision 91.3%; RSS +217 MB after load and inference (macOS arm64) | `Xenova/distilbert-base-multilingual-cased-ner-hrl` at `c2a4dbf593c57f47004c5bc2d3770d311aee9c43` (int8 `onnx/model_quantized.onnx`, 135,359,829 bytes, SHA-256 `24a0b98f…b2edb986`; export of `Davlan/distilbert-base-multilingual-cased-ner-hrl`, AFL-3.0 per the base card, conversion repo declares none): word recall 81.0%, whole-name recall 76.3%, precision 96.6%, RSS +396 MB peak. Thresholds 0.3/0.15 are in the benchmark report; both pins are in `pii/build.gradle.kts` | Recall is the costly error (specs §6.3): the English model finds more of the synthetic Indian names, at half the size and inside the ~300 MB budget (§10.1); the multilingual model is more precise but misses more names and exceeds the budget. Neither reaches 99% alone; NER backs up the rule and address-block layers (R3). |
 | ADR-16 | NER stays on in every environment: the Docker build stage downloads the pinned model (`:pii:stageNerModel`, SHA-256 checked) into the image at `/app/models/ner` (+~66 MB) and `app` tests/`bootRun` use the staged copy; PII beans are built at start-up (fail fast); CI and tests use throwaway Tink keysets, CI's built by `scripts/ci/stack-credentials.sh` with `openssl rand` (owner decision 2026-10-29, M2.10a) | Model-free image with `PII_NER=false` in `compose.ci.yaml` only; keysets from Tinkey in CI; building PII beans lazily on the first PII job | Turning NER off anywhere lowers recall (owner approval needed); a bundled model makes the image self-contained and smoke-tests the real start-up path. `openssl` is already on CI runners, so no new tool. Lazy beans would let a broken setup accept uploads that then fail in the PII stage. |
 | ADR-17 | PII stage outputs (owner decision 2026-10-29, M2.10b): `pii_span` rows per run and a shared `pii_vault` (insert-if-absent) written only by `pii`'s `RedactionStore`; OCR pages masked on the stored page image preprocessed again; no table for redacted text, `RedactedContent` rebuilt later from text layer + spans + redacted pages | Storing the preprocessed image as another blob kind; a `redacted_text` table | Preprocessing is deterministic, so a second image per page and a `blob_ref` kind change aren't needed; one source of truth for spans avoids redacted text drifting from them. |
+| ADR-18 | LLM providers (owner decision 2026-10-30, M3.8): `spring-ai-ollama` for local models and `spring-ai-anthropic` (Claude through the Messages API) for the cloud, key in `LLM_ANTHROPIC_API_KEY`; clients built from config by `extract`'s `LlmClients`, only for providers the registry uses. Runner's choice in the same PR: the Extract stage is off until `invoice-intel.llm.extraction.model` names a model | Ollama + OpenAI (`spring-ai-openai`, also OpenAI-compatible endpoints); Ollama only, cloud provider later | The owner's choice. Spring AI 2.0's Anthropic module is built on the Anthropic Java SDK, which brings OkHttp 4 and the Kotlin stdlib (like the OpenAI module would); image size and Trivy are checked in the M3.8 PR. Leaving the stage off without a model keeps a fresh setup from calling any model. |
 
 ---
 

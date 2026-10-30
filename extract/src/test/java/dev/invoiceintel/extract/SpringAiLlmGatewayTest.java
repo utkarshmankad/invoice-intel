@@ -216,6 +216,10 @@ class SpringAiLlmGatewayTest {
     assertThat(recorded)
         .extracting(LlmCall::attempt, LlmCall::outcome)
         .containsExactly(tuple(1, LlmOutcome.INVALID_OUTPUT), tuple(2, LlmOutcome.SUCCEEDED));
+    // Both raw responses go to the leak check (PII-6), the invalid one included.
+    assertThat(result.responses())
+        .containsExactly(
+            "{\"invoiceNumber\":\"\"}", "{\"invoiceNumber\":\"INV-TOKEN-1\",\"grandTotal\":1180}");
     // The repair request carries the validation errors back to the model.
     wireMock.verify(
         postRequestedFor(urlEqualTo("/api/chat"))
@@ -262,6 +266,7 @@ class SpringAiLlmGatewayTest {
               assertThat(call.inputTokens()).isZero();
               assertThat(call.costUsd()).isEqualByComparingTo("0");
             });
+    assertThat(result.responses()).isEmpty();
   }
 
   @Test
@@ -285,10 +290,16 @@ class SpringAiLlmGatewayTest {
 
   @Test
   void requestAndResult_toString_printNoText() {
-    var succeeded = new LlmResult.Succeeded<>(new Totals("INV-TOKEN-1", BigDecimal.ONE), List.of());
+    var succeeded =
+        new LlmResult.Succeeded<>(
+            new Totals("INV-TOKEN-1", BigDecimal.ONE), List.of(), List.of("raw INV-TOKEN-1"));
+    var failed =
+        new LlmResult.Failed<Totals>(
+            LlmResult.Failed.INVALID_OUTPUT, List.of(), List.of("raw INV-TOKEN-1"));
 
     assertThat(request().toString()).doesNotContain("Extract the invoice").contains("totals/v1");
     assertThat(succeeded.toString()).doesNotContain("INV-TOKEN-1");
+    assertThat(failed.toString()).doesNotContain("INV-TOKEN-1").contains("LLM_INVALID_OUTPUT");
   }
 
   @Test

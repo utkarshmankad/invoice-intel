@@ -129,6 +129,21 @@ public final class StageRunRepository {
         .update();
   }
 
+  /** The run number of the stage's latest {@code SUCCEEDED} run, if any. */
+  public OptionalInt latestSucceededRun(DocumentId id, Stage stage) {
+    return jdbc.sql(
+            """
+            SELECT run_no FROM stage_run
+            WHERE document_id = ? AND stage = ? AND status = 'SUCCEEDED'
+            ORDER BY run_no DESC LIMIT 1
+            """)
+        .params(id.value(), stage.name())
+        .query(Integer.class)
+        .optional()
+        .map(OptionalInt::of)
+        .orElse(OptionalInt.empty());
+  }
+
   /** A document's state, read under its row lock; {@code failedStage} is set only when FAILED. */
   public record LockedDocument(DocumentState state, Stage failedStage) {
 

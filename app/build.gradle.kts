@@ -39,6 +39,8 @@ dependencies {
     // SeaweedFS (S3) for upload tests, and the generator for the smoke fixture (M1.3).
     "integrationTestImplementation"(libs.testcontainers)
     "integrationTestImplementation"(testFixtures(project(":common")))
+    // Stubs the Extract stage's model server; no real LLM calls (testing.md).
+    "integrationTestImplementation"(libs.wiremock.standalone)
     // Waits for stage jobs in pipeline tests (testing.md: no sleeps).
     "integrationTestImplementation"(libs.awaitility)
     // Builds image-only (scanned) PDFs for the Text stage test.
