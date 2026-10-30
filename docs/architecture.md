@@ -539,6 +539,24 @@ After extraction, `LeakChecker` decrypts the vault values for that document in m
 searches the LLM's raw response (normalized: case, whitespace, digits-only variants). Any hit
 → document `FAILED` with `reason_code = PII_LEAK`, response discarded, alert metric incremented.
 
+Implementation (M3.7): `pii`'s `LeakChecker.check(documentId, response)` loads the document's
+vault entries (`pii_vault` rows whose token is in any `pii_span` row of the document, over all
+its PII runs, so re-runs widen rather than narrow the check), opens them with `PiiVault` and
+returns `LeakCheckResult` (the leaked `PiiType`s only). Response and values are compared in a
+canonical form: ASCII lower case, every run of non-letters/digits as one space (no Unicode
+case mapping or NFKC, as in `TokenGenerator`: FindSecBugs `IMPROPER_UNICODE`, owner decision
+open). A value
+matches on whole words; a multi-word value also matches with its spaces removed; a value with at
+least 6 digits also matches inside a run of digits that only spaces or punctuation separate
+(`+91 98765-43210`). Decrypted values stay in local variables and are never logged, returned or
+put in an exception; an entry that doesn't decrypt throws (fail closed). On a leak the
+`LeakChecker.Listener` is called with the document ID and types; `app` (`PipelineConfiguration`)
+increments the `invoice.pii.leak` counter (§12) and logs an error with `documentId` and
+`piiTypes` only. The caller (Extract stage, M3.8) throws `StageFailedException(PII_LEAK)`, so
+the document becomes `FAILED` in `EXTRACT` with `failure_code = PII_LEAK` and nothing of the
+response is stored. Values without a vault entry (PIN codes, redact mode) are not yet checked
+(plan.md Follow-ups).
+
 ### 6.4 The PII gate (type-level enforcement of PII-1)
 
 ```java
