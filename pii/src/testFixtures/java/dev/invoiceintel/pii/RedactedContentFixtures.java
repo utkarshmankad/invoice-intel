@@ -40,6 +40,22 @@ public final class RedactedContentFixtures {
     return new RedactedContent(documentId, RedactionMode.PSEUDONYMIZE, pages);
   }
 
+  /**
+   * {@code content} with {@code pngs.get(i)} as page {@code i + 1}'s masked image, as if {@link
+   * ImageRedactor} ran; a {@code null} entry leaves that page without one. Pass synthetic images.
+   */
+  public static RedactedContent withImages(RedactedContent content, List<byte[]> pngs) {
+    if (pngs.size() != content.pages().size()) {
+      throw new IllegalArgumentException("one image entry per page expected");
+    }
+    var pages = new ArrayList<RedactedContent.Page>();
+    for (int i = 0; i < pngs.size(); i++) {
+      RedactedContent.Page page = content.pages().get(i);
+      pages.add(pngs.get(i) == null ? page : page.withImage(pngs.get(i)));
+    }
+    return content.withPages(pages);
+  }
+
   private static RedactedContent.Page page(int pageNo, String text) {
     var words = new ArrayList<Word>();
     String[] lines = text.split("\n", -1);

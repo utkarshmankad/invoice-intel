@@ -69,6 +69,10 @@ public final class SpringAiLlmGateway implements LlmGateway {
         registry
             .find(request.model())
             .orElseThrow(() -> new IllegalArgumentException("unknown model: " + request.model()));
+    if (!request.strategy().supportedBy(model)) {
+      throw new IllegalArgumentException(
+          "model " + model.name() + " does not support strategy " + request.strategy());
+    }
     ChatModel client = clients.get(model.provider());
     if (client == null) {
       throw new IllegalArgumentException("no client for provider: " + model.provider());
@@ -77,8 +81,8 @@ public final class SpringAiLlmGateway implements LlmGateway {
     var converter = new BeanOutputConverter<>(request.outputType());
     var messages = new ArrayList<Message>();
     messages.add(new SystemMessage(request.instructions() + "\n\n" + converter.getFormat()));
-    // TEXT strategy (EXT-2): redacted lines with the markers the model cites as evidence.
-    messages.add(new UserMessage(TextLines.markedText(content)));
+    // The strategy's view of the redacted content (EXT-2): marked lines, masked images or both.
+    messages.add(ModelInput.userMessage(content, request.strategy()));
     // Spring AI 2.0 providers accept only their own options type, so the model ID goes onto
     // the client's defaults.
     ChatOptions options = client.getOptions().mutate().model(model.modelId()).build();

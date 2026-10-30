@@ -11,15 +11,27 @@ import java.util.Objects;
  * @param prompt the prompt the instructions were rendered from, recorded per call (EXT-4)
  * @param instructions system instructions; the gateway appends the output schema (EXT-1)
  * @param outputType record the response is parsed into and validated against
+ * @param strategy which parts of the redacted content the model sees (EXT-2)
  */
 public record ExtractionRequest<T>(
-    String model, PromptRef prompt, String instructions, Class<T> outputType) {
+    String model,
+    PromptRef prompt,
+    String instructions,
+    Class<T> outputType,
+    ExtractionStrategy strategy) {
 
   public ExtractionRequest {
     Objects.requireNonNull(model, "model");
     Objects.requireNonNull(prompt, "prompt");
     Objects.requireNonNull(instructions, "instructions");
     Objects.requireNonNull(outputType, "outputType");
+    Objects.requireNonNull(strategy, "strategy");
+  }
+
+  /** A {@link ExtractionStrategy#TEXT} request. */
+  public ExtractionRequest(
+      String model, PromptRef prompt, String instructions, Class<T> outputType) {
+    this(model, prompt, instructions, outputType, ExtractionStrategy.TEXT);
   }
 
   /** Never prints the instructions. */
@@ -31,6 +43,8 @@ public record ExtractionRequest<T>(
         + prompt.id()
         + ", outputType="
         + outputType.getSimpleName()
+        + ", strategy="
+        + strategy
         + "]";
   }
 }
