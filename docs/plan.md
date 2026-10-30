@@ -126,7 +126,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 - [x] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored. Done 2026-10-30: `RuleEngine`, `ValidationRule`, `RuleResult`/`RuleOutcome`, `ValidationContext`, `ValidationResultStore`, V8 `validation_result`, `ExtractionId` in `common`; extraction records moved to `common` first (ADR-19, PR #56); architecture §6.6, §7.
 - [ ] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass.
-- [ ] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests.
+- [x] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests. Done 2026-10-30: `GstState` table (36 states/UTs + 97, legacy 25/28, old names), `GstinStateRule` (VAL-4, seller GSTIN vs state in `sellerAddress`), `TaxSplitRule` (VAL-5, per line); parameterized over every state; architecture §6.6.
 - [ ] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested.
 - [ ] **M4.5** · VAL-7 amount-in-words parser (Indian numbering) · *VAL-7* · **Done when** lakh/crore/paise cases pass.
 - [ ] **M4.6** · Confidence scorer + decision (AUTO_APPROVED / NEEDS_REVIEW / FAILED) · *VAL-8, §6.6* · **Done when** decision stored with reasons.
@@ -241,6 +241,9 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] The leak check (M3.7) still covers vault values only: PIN codes and every redact-mode value aren't checked (see the M2.6 follow-up above, decision still open). `LeakChecker` compares any list of strings, so the open part is only where a document's non-vault values come from at Extract time (e.g. re-run detection on the text layer in memory) · found in M3.7
 - [ ] The leak check folds ASCII case only and doesn't apply NFKC (FindSecBugs `IMPROPER_UNICODE`), so a full-width or otherwise Unicode-variant copy of a value in the response isn't found. Decide together with the M2.5 token-normalization follow-up (owner) · found in M3.7
 - [ ] `invoice.pii.leak` is registered in `PipelineConfiguration` (M3.7); M4.9 should keep that name and move it next to the other §12 metrics if it centralises them · found in M3.7
+- [ ] The extraction schema has no seller-state field, so VAL-4/VAL-5 (M4.3) read the seller state from the last state name in `sellerAddress`; consider adding `sellerState` (Amazon invoices print "State/UT Code") to the schema and prompt, or confirm the address parse on the eval set (M5) · found in M4.3
+- [ ] State names live twice: `pii.internal.IndianStates` (detector context) and `validate.GstState` (M4.3, with codes). Consider moving one table to `common` so the lists can't drift · found in M4.3
+- [ ] VAL-5 accepts UTGST or SGST in every state; decide whether UTGST in a state with a legislature (or SGST in Chandigarh, Ladakh, Lakshadweep, A&N, DNHDD) should WARN · found in M4.3
 
 ---
 
