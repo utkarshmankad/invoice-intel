@@ -155,7 +155,7 @@ class LlmPropertiesTest {
             new ModelSpec("m", "p", "id", null, BigDecimal.ZERO, BigDecimal.ZERO)
                 .supports(ModelCapability.TEXT))
         .isFalse();
-    assertThat(new LlmProperties(null, null, null).models()).isEqualTo(List.of());
+    assertThat(new LlmProperties(null, null, null, null, null, null).models()).isEqualTo(List.of());
   }
 
   private static Set<String> paths(Set<? extends ConstraintViolation<?>> violations) {
@@ -180,5 +180,26 @@ class LlmPropertiesTest {
   void bind_noConcurrencyCaps_usesDefault() {
     assertThat(bind(twoProviders()).rateLimiter().available("openai"))
         .isEqualTo(LlmProperties.DEFAULT_MAX_CONCURRENT_CALLS);
+  }
+
+  @Test
+  void bind_extractionAndProviders_readsModelStrategyAndEndpoints() {
+    Map<String, String> config = twoProviders();
+    config.put("invoice-intel.llm.extraction.model", "cloud-vision");
+    config.put("invoice-intel.llm.extraction.strategy", "hybrid");
+    config.put("invoice-intel.llm.ollama.base-url", "http://127.0.0.1:9999");
+    config.put("invoice-intel.llm.anthropic.api-key", "test-key-not-real");
+    config.put("invoice-intel.llm.anthropic.max-tokens", "2048");
+    config.put("invoice-intel.llm.anthropic.timeout", "30s");
+
+    LlmProperties properties = bind(config);
+
+    assertThat(properties.extraction().enabled()).isTrue();
+    assertThat(properties.extraction().model()).isEqualTo("cloud-vision");
+    assertThat(properties.extraction().strategy()).isEqualTo(ExtractionStrategy.HYBRID);
+    assertThat(properties.ollama().baseUrl()).isEqualTo("http://127.0.0.1:9999");
+    assertThat(properties.anthropic().apiKey()).isEqualTo("test-key-not-real");
+    assertThat(properties.anthropic().maxTokens()).isEqualTo(2048);
+    assertThat(properties.anthropic().timeout()).isEqualTo(java.time.Duration.ofSeconds(30));
   }
 }

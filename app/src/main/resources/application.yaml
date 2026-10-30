@@ -52,6 +52,31 @@ invoice-intel:
       threshold: 0.5
     local-llm:
       endpoint: http://127.0.0.1:11434
+  # Extract stage (EXT-1..5, architecture.md §6.5, ADR-18). It runs only when
+  # LLM_EXTRACTION_MODEL names a model below; blank keeps documents in PII_CLEAN. Prices are USD
+  # per million tokens (EXT-4), Anthropic list prices checked 2026-10-30.
+  llm:
+    extraction:
+      model: ${LLM_EXTRACTION_MODEL:}
+      strategy: ${LLM_EXTRACTION_STRATEGY:text}
+    models:
+      - name: claude-sonnet
+        provider: anthropic
+        model-id: ${LLM_ANTHROPIC_MODEL_ID:claude-sonnet-5-5}
+        capabilities: [text, vision]
+        input-price-per-million: 2.00
+        output-price-per-million: 10.00
+      - name: local
+        provider: ollama
+        model-id: ${LLM_OLLAMA_MODEL_ID:qwen2.5vl:7b}
+        capabilities: [text, vision]
+        input-price-per-million: 0
+        output-price-per-million: 0
+    ollama:
+      base-url: ${LLM_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+    # No default key: an Anthropic model can only be chosen once LLM_ANTHROPIC_API_KEY is set.
+    anthropic:
+      api-key: ${LLM_ANTHROPIC_API_KEY:}
 
 # Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its
 # own tables. The dashboard stays off: it would listen on its own port without the app's login.

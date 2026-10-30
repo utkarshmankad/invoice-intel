@@ -151,17 +151,31 @@ public final class TextRedactor {
       RedactionMode mode,
       Map<String, VaultEntry> entries,
       Map<PiiSpan, String> replaced) {
-    List<Word> words = page.words();
-    // owner[i]: index in spans of the span covering word i, or -1 when the word is kept.
-    int[] owner = new int[words.size()];
-    Arrays.fill(owner, -1);
     var replacements = new ArrayList<String>(spans.size());
-    for (int s = 0; s < spans.size(); s++) {
-      PiiSpan span = spans.get(s);
+    for (PiiSpan span : spans) {
       String value = text.text().substring(span.start(), span.end());
       String replacement = replace(span.type(), value, mode, entries);
       replacements.add(replacement);
       replaced.put(span, replacement);
+    }
+    return replaceWords(page, text, spans, replacements);
+  }
+
+  /**
+   * {@code page} with the words of each span replaced by its replacement text, one word per line of
+   * the span (see the class comment). {@link RedactedContentLoader} calls it with the stored spans
+   * and tokens, so a reloaded page has the same words as the one the PII stage built.
+   *
+   * @throws IllegalArgumentException if two spans touch the same word
+   */
+  static RedactedContent.Page replaceWords(
+      TextPage page, PageText text, List<PiiSpan> spans, List<String> replacements) {
+    List<Word> words = page.words();
+    // owner[i]: index in spans of the span covering word i, or -1 when the word is kept.
+    int[] owner = new int[words.size()];
+    Arrays.fill(owner, -1);
+    for (int s = 0; s < spans.size(); s++) {
+      PiiSpan span = spans.get(s);
       for (int i = 0; i < words.size(); i++) {
         if (text.wordStart(i) < span.end() && text.wordEnd(i) > span.start()) {
           if (owner[i] >= 0) {

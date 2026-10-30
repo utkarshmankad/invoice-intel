@@ -18,11 +18,13 @@ dependencies {
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.jackson.databind)
     implementation(libs.slf4j.api)
+    // Chat clients built from config (ADR-18): Ollama for local models, Anthropic for the cloud.
+    implementation(libs.spring.ai.ollama)
+    implementation(libs.spring.ai.anthropic)
 
     testImplementation(libs.jackson.databind)
     testImplementation(testFixtures(project(":common")))
     testImplementation(testFixtures(project(":pii")))
-    // A real provider client against WireMock stubs; no real LLM calls (testing.md).
-    testImplementation(libs.spring.ai.ollama)
+    // Real provider clients against WireMock stubs; no real LLM calls (testing.md).
     testImplementation(libs.wiremock.standalone)
 }

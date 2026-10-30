@@ -27,6 +27,7 @@ jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GH
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-boot = { module = "org.springframework.boot:spring-boot" }
+spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
@@ -63,6 +64,7 @@ jobrunr-spring-boot-starter = { module = "org.jobrunr:jobrunr-spring-boot-4-star
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 spring-ai-model = { module = "org.springframework.ai:spring-ai-model" }
 spring-ai-ollama = { module = "org.springframework.ai:spring-ai-ollama" }
+spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 awaitility = { module = "org.awaitility:awaitility" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
