@@ -752,9 +752,6 @@ may quote values), so a broken rule sends the document to review rather than fai
 `ValidationResultStore.replace` writes an extraction's rows (deleting earlier ones) inside the
 caller's transaction; `find` reads them ordered by rule ID.
 
-VAL-4 uses `GstinChecksum.isValid` from `common` (`dev.invoiceintel.common.checksum`, added in
-M2.2), the same check the PII detector uses, so the two can't disagree.
-
 VAL-4, VAL-5 (M4.3): `GstinStateRule` (VAL-4) and `TaxSplitRule` (VAL-5), with the state-code
 table `GstState` (28 states, 8 UTs and 97 Other Territory; legacy codes 25 → 26 and 28 → 37; old
 names such as Orissa and Pondicherry; matching ignores case, punctuation and spacing). The schema
@@ -764,6 +761,9 @@ GSTIN, else from `sellerAddress`, and checks each line carrying CGST/SGST/UTGST/
 accepted for SGST). Only the seller GSTIN is checked (the buyer GSTIN is PII and not extracted). A
 pseudonym token, a missing GSTIN on a GST-era invoice, or a seller state or place of supply that
 can't be found is a WARN; no GST taxes or a pre-GST invoice without GSTIN is a PASS.
+
+VAL-4 uses `GstinChecksum.isValid` from `common` (`dev.invoiceintel.common.checksum`, added in
+M2.2), the same check the PII detector uses, so the two can't disagree.
 
 **Confidence scoring (VAL-8):**
 ```
