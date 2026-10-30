@@ -127,7 +127,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 - [x] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored. Done 2026-10-30: `RuleEngine`, `ValidationRule`, `RuleResult`/`RuleOutcome`, `ValidationContext`, `ValidationResultStore`, V8 `validation_result`, `ExtractionId` in `common`; extraction records moved to `common` first (ADR-19, PR #56); architecture §6.6, §7.
 - [ ] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass.
 - [ ] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests.
-- [ ] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested.
+- [x] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested. Done 2026-10-30: `TaxRegimeDateRule` (pre-2017-07-01 with CGST/SGST/IGST/UTGST or GST era with VAT/CST → FAIL; pre-GST `sellerGstin` → WARN; CESS allowed in both eras; missing date → WARN if any era-specific field, else PASS); boundary and far-date tests. Not wired into the pipeline yet (M4.7).
 - [ ] **M4.5** · VAL-7 amount-in-words parser (Indian numbering) · *VAL-7* · **Done when** lakh/crore/paise cases pass.
 - [ ] **M4.6** · Confidence scorer + decision (AUTO_APPROVED / NEEDS_REVIEW / FAILED) · *VAL-8, §6.6* · **Done when** decision stored with reasons.
 - [ ] **M4.7** · Validate stage job; end-to-end pipeline test RECEIVED → decision with stubbed LLM; narrow `SMOKE_EXPECT_STATUSES` in `ci.yml` to `AUTO_APPROVED,NEEDS_REVIEW` · *§5, ci.md §4* · **Done when** integration test and smoke job green.
@@ -241,6 +241,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] The leak check (M3.7) still covers vault values only: PIN codes and every redact-mode value aren't checked (see the M2.6 follow-up above, decision still open). `LeakChecker` compares any list of strings, so the open part is only where a document's non-vault values come from at Extract time (e.g. re-run detection on the text layer in memory) · found in M3.7
 - [ ] The leak check folds ASCII case only and doesn't apply NFKC (FindSecBugs `IMPROPER_UNICODE`), so a full-width or otherwise Unicode-variant copy of a value in the response isn't found. Decide together with the M2.5 token-normalization follow-up (owner) · found in M3.7
 - [ ] `invoice.pii.leak` is registered in `PipelineConfiguration` (M3.7); M4.9 should keep that name and move it next to the other §12 metrics if it centralises them · found in M3.7
+- [ ] `TaxType.CESS` doesn't say whether a cess is GST compensation cess or a pre-GST service-tax cess (Swachh Bharat, Krishi Kalyan), so VAL-6 allows CESS in both eras; decide (owner) whether the schema should split it, which would let VAL-6 flag a GST cess on a pre-GST invoice · found in M4.4
 
 ---
 
