@@ -124,7 +124,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M4 — Validation and decisions
 
-- [ ] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored.
+- [x] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored. Done 2026-10-30: `RuleEngine`, `ValidationRule`, `RuleResult`/`RuleOutcome`, `ValidationContext`, `ValidationResultStore`, V8 `validation_result`, `ExtractionId` in `common`; extraction records moved to `common` first (ADR-19, PR #56); architecture §6.6, §7.
 - [ ] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass.
 - [ ] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests.
 - [ ] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested.
