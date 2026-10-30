@@ -658,6 +658,15 @@ attempt only (PII-8).
 
 **Evidence:** the prompt asks the model to cite the line markers it used; the extractor maps
 them back to word boxes from the text layer for review highlighting.
+Implementation (M3.6): `EvidenceMapper.map(extraction, redactedContent)` repeats the
+`TextLines` grouping and, for every `LLM` field with evidence (line items and tax lines
+included), sets `Evidence.box` to the union of the cited lines' word boxes (text-layer units,
+clamped to ≥ 0) and `Evidence.page` to the cited lines' page; the model's own box is never kept.
+Markers are matched as `p{page}:l{line}` (case-insensitive, optional brackets); malformed or
+unknown ones are ignored. When cited lines span pages, those on the model's `page` win, else the
+first cited page. If no marker resolves, the box is cleared and the model's page kept. `RULE`
+and `HUMAN` evidence and `lineRefs` are left as they are. The extract stage (M3.8) calls it on
+the parsed result before storing it.
 
 ### 6.6 Validate (`validate`)
 
