@@ -1,5 +1,12 @@
 package dev.invoiceintel.extract;
 
+import dev.invoiceintel.common.extraction.BoundingBox;
+import dev.invoiceintel.common.extraction.Evidence;
+import dev.invoiceintel.common.extraction.Field;
+import dev.invoiceintel.common.extraction.FieldSource;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
+import dev.invoiceintel.common.extraction.LineItem;
+import dev.invoiceintel.common.extraction.TaxLine;
 import dev.invoiceintel.pii.RedactedContent;
 import dev.invoiceintel.text.Word;
 import java.util.HashMap;

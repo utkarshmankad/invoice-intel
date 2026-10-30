@@ -1,4 +1,4 @@
-package dev.invoiceintel.extract;
+package dev.invoiceintel.common.extraction;
 
 /**
  * What a line item charges for (specs.md §5.2): shipping and convenience charges are line items

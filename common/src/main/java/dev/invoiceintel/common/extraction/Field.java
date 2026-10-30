@@ -1,4 +1,4 @@
-package dev.invoiceintel.extract;
+package dev.invoiceintel.common.extraction;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;

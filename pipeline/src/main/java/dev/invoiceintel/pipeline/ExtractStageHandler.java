@@ -1,8 +1,8 @@
 package dev.invoiceintel.pipeline;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.extract.ExtractionStore;
-import dev.invoiceintel.extract.InvoiceExtraction;
 import dev.invoiceintel.extract.InvoiceExtractor;
 import dev.invoiceintel.extract.LlmResult;
 import dev.invoiceintel.pii.LeakChecker;

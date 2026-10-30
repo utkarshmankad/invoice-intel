@@ -1,4 +1,4 @@
-package dev.invoiceintel.extract;
+package dev.invoiceintel.common.extraction;
 
 import dev.invoiceintel.common.DocumentClass;
 import jakarta.validation.Valid;
