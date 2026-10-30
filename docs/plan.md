@@ -125,7 +125,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 ## M4 — Validation and decisions
 
 - [x] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored. Done 2026-10-30: `RuleEngine`, `ValidationRule`, `RuleResult`/`RuleOutcome`, `ValidationContext`, `ValidationResultStore`, V8 `validation_result`, `ExtractionId` in `common`; extraction records moved to `common` first (ADR-19, PR #56); architecture §6.6, §7.
-- [ ] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass.
+- [x] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass. Done 2026-10-30: `SubtotalRule` (VAL-1), `TaxAmountRule` (VAL-2), `GrandTotalRule` (VAL-3) in `validate`, ±₹1.00 inclusive at 2 decimals `HALF_UP`; charges are line items, so VAL-1 sums every line and VAL-3 adds no extra term; missing amounts WARN; not wired into the pipeline yet (M4.7); architecture §6.6.
 - [ ] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests.
 - [ ] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested.
 - [ ] **M4.5** · VAL-7 amount-in-words parser (Indian numbering) · *VAL-7* · **Done when** lakh/crore/paise cases pass.
@@ -241,6 +241,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] The leak check (M3.7) still covers vault values only: PIN codes and every redact-mode value aren't checked (see the M2.6 follow-up above, decision still open). `LeakChecker` compares any list of strings, so the open part is only where a document's non-vault values come from at Extract time (e.g. re-run detection on the text layer in memory) · found in M3.7
 - [ ] The leak check folds ASCII case only and doesn't apply NFKC (FindSecBugs `IMPROPER_UNICODE`), so a full-width or otherwise Unicode-variant copy of a value in the response isn't found. Decide together with the M2.5 token-normalization follow-up (owner) · found in M3.7
 - [ ] `invoice.pii.leak` is registered in `PipelineConfiguration` (M3.7); M4.9 should keep that name and move it next to the other §12 metrics if it centralises them · found in M3.7
+- [ ] No rule checks the other arithmetic the schema allows: `totalTax` = Σ tax line amounts, line `lineTotal` = `netAmount` + its taxes, `netAmount` = `unitPrice` × `quantity` − `discount`. VAL-3 trusts `totalTax` as extracted; propose spec rules (owner approval) if eval runs (M5) show such errors slipping through · found in M4.2
 
 ---
 
