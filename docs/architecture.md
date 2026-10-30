@@ -741,6 +741,17 @@ public interface ValidationRule {
 
 All amounts use `BigDecimal` with `HALF_UP` at 2 decimals.
 
+Implementation (M4.1, root package `dev.invoiceintel.validate`): `RuleResult(outcome, message)`
+with `RuleOutcome` `PASS`/`WARN`/`FAIL`; a PASS has no message, a WARN or FAIL must have one (for
+the reviewer; it may name fields and amounts, never pseudonym tokens or document text, PII-8).
+`ValidationContext(documentId, classifierClass)` carries the Text stage's class hint (TXT-4;
+`OTHER` when there is none). `RuleEngine` runs its rules in registration order and returns one
+`ValidationResult(ruleId, outcome, message)` per rule; rule IDs must be unique. A rule that throws
+or returns `null` counts as a `FAIL` with a fixed message (the exception text is dropped, since it
+may quote values), so a broken rule sends the document to review rather than failing the stage.
+`ValidationResultStore.replace` writes an extraction's rows (deleting earlier ones) inside the
+caller's transaction; `find` reads them ordered by rule ID.
+
 VAL-4 uses `GstinChecksum.isValid` from `common` (`dev.invoiceintel.common.checksum`, added in
 M2.2), the same check the PII detector uses, so the two can't disagree.
 
@@ -849,6 +860,11 @@ the current ones are those of the latest `SUCCEEDED` run) and names its offsets 
 `PromptRef.id()`, `result` the `InvoiceExtraction` JSON (pseudonymized values only, written after
 the leak check passed); rows cascade-delete with their document. The current extraction is that
 of the latest `SUCCEEDED` Extract run.
+
+`validation_result` (V8, M4.1): one row per rule per extraction, unique `(extraction_id,
+rule_id)`; `outcome` is `PASS`, `WARN` or `FAIL`, and `message` is set exactly for `WARN` and
+`FAIL`; validating an extraction again replaces its rows (no `run_no`); rows cascade-delete with
+their extraction. `ExtractionId` (`common`) is the typed `extraction.id`.
 
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
