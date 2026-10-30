@@ -12,6 +12,7 @@ com.h3xstream.findsecbugs:findsecbugs-plugin:1.14.0=spotbugsPlugins
 commons-io:commons-io:2.22.0=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,spotbugs,testCompileClasspath,testRuntimeClasspath
 commons-logging:commons-logging:1.3.6=compileClasspath,integrationTestCompileClasspath,runtimeClasspath,testCompileClasspath
 commons-logging:commons-logging:1.4.0=integrationTestRuntimeClasspath,testRuntimeClasspath
+jakarta.validation:jakarta.validation-api:3.1.1=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jaxen:jaxen:2.0.6=spotbugs
 net.bytebuddy:byte-buddy:1.18.15=integrationTestCompileClasspath,integrationTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 net.sf.saxon:Saxon-HE:12.10=spotbugs

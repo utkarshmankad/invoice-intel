@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.pii.RedactedContent;
 import dev.invoiceintel.pii.RedactedContentFixtures;
 import jakarta.validation.Validation;

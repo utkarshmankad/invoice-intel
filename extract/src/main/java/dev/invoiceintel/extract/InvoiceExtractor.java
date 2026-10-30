@@ -1,5 +1,6 @@
 package dev.invoiceintel.extract;
 
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.pii.RedactedContent;
 import java.util.Map;
 import java.util.Objects;

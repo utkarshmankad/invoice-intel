@@ -79,7 +79,7 @@ invoice-intel/
 ├── settings.gradle.kts
 ├── gradle/libs.versions.toml
 ├── buildSrc/   convention plugins: java-conventions (toolchain, tests, JaCoCo, Spotless, SpotBugs, locking), mutation-testing, spring-boot-app
-├── common/      domain model, IDs, events, money/date utils, status enums
+├── common/      domain model, IDs, events, money/date utils, status enums, extraction schema records
 ├── storage/     BlobStore interface + S3 implementation
 ├── ingest/      upload handling, hashing, dedupe, Tika type detection
 ├── text/        PDF text layer, rendering, OpenCV preprocessing, Tess4J OCR, rule-based classifier
@@ -633,7 +633,8 @@ Spring AI structured output generates the JSON schema from the records; response
 parsed and then checked with Bean Validation. A parse failure gets one repair retry with the
 error message, then the stage fails.
 
-Record shape (M3.1, root package `dev.invoiceintel.extract`): every scalar of spec §5.1–5.2
+Record shape (M3.1; package `dev.invoiceintel.common.extraction` since M4.1, ADR-19, so `validate`
+can read them without depending on `extract`): every scalar of spec §5.1–5.2
 is a `Field<T>(value, confidence, source, evidence)` with `source` ∈ `LLM`/`RULE`/`HUMAN`
 (spec §5.3). A field the document lacks is a `null` `Field`; a present `Field` always has a
 non-null value. `Evidence(page, box, lineRefs)` holds the line markers the model cited and,
@@ -1154,6 +1155,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-16 | NER stays on in every environment: the Docker build stage downloads the pinned model (`:pii:stageNerModel`, SHA-256 checked) into the image at `/app/models/ner` (+~66 MB) and `app` tests/`bootRun` use the staged copy; PII beans are built at start-up (fail fast); CI and tests use throwaway Tink keysets, CI's built by `scripts/ci/stack-credentials.sh` with `openssl rand` (owner decision 2026-10-29, M2.10a) | Model-free image with `PII_NER=false` in `compose.ci.yaml` only; keysets from Tinkey in CI; building PII beans lazily on the first PII job | Turning NER off anywhere lowers recall (owner approval needed); a bundled model makes the image self-contained and smoke-tests the real start-up path. `openssl` is already on CI runners, so no new tool. Lazy beans would let a broken setup accept uploads that then fail in the PII stage. |
 | ADR-17 | PII stage outputs (owner decision 2026-10-29, M2.10b): `pii_span` rows per run and a shared `pii_vault` (insert-if-absent) written only by `pii`'s `RedactionStore`; OCR pages masked on the stored page image preprocessed again; no table for redacted text, `RedactedContent` rebuilt later from text layer + spans + redacted pages | Storing the preprocessed image as another blob kind; a `redacted_text` table | Preprocessing is deterministic, so a second image per page and a `blob_ref` kind change aren't needed; one source of truth for spans avoids redacted text drifting from them. |
 | ADR-18 | LLM providers (owner decision 2026-10-30, M3.8): `spring-ai-ollama` for local models and `spring-ai-anthropic` (Claude through the Messages API) for the cloud, key in `LLM_ANTHROPIC_API_KEY`; clients built from config by `extract`'s `LlmClients`, only for providers the registry uses. Runner's choice in the same PR: the Extract stage is off until `invoice-intel.llm.extraction.model` names a model | Ollama + OpenAI (`spring-ai-openai`, also OpenAI-compatible endpoints); Ollama only, cloud provider later | The owner's choice. Spring AI 2.0's Anthropic module is built on the Anthropic Java SDK, which brings OkHttp 4 and the Kotlin stdlib (like the OpenAI module would); image size and Trivy are checked in the M3.8 PR. Leaving the stage off without a model keeps a fresh setup from calling any model. |
+| ADR-19 | Extraction schema records (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`) live in `common` (`dev.invoiceintel.common.extraction`); `common` gains `jakarta.validation-api` (annotations only, no validator) (owner decision 2026-10-30, M4.1) | Allow `validate → extract` in §4.1; a separate copy of the shape in `validate` | `validate` (§6.6) and `eval` read the extraction, and §4.1 keeps `validate` off `extract` (which brings Spring AI). One definition of the JSONB shape (`extraction.result`) avoids drift. |
 
 ---
 

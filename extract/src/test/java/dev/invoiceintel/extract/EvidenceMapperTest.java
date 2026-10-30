@@ -5,6 +5,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.invoiceintel.common.DocumentClass;
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.extraction.BoundingBox;
+import dev.invoiceintel.common.extraction.ChargeType;
+import dev.invoiceintel.common.extraction.Currency;
+import dev.invoiceintel.common.extraction.Evidence;
+import dev.invoiceintel.common.extraction.Field;
+import dev.invoiceintel.common.extraction.FieldSource;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
+import dev.invoiceintel.common.extraction.LineItem;
+import dev.invoiceintel.common.extraction.TaxLine;
+import dev.invoiceintel.common.extraction.TaxType;
 import dev.invoiceintel.pii.RedactedContent;
 import dev.invoiceintel.pii.RedactedContentFixtures;
 import dev.invoiceintel.text.Word;

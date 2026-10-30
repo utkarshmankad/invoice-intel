@@ -1,6 +1,7 @@
 package dev.invoiceintel.extract;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;

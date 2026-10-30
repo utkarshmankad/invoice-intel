@@ -3,6 +3,7 @@ package dev.invoiceintel.extract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Set;

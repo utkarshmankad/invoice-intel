@@ -1,4 +1,4 @@
-package dev.invoiceintel.extract;
+package dev.invoiceintel.common.extraction;
 
 /** Where a field's value came from (specs.md §5.3). */
 public enum FieldSource {
