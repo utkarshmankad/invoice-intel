@@ -760,6 +760,16 @@ inclusive tolerance. Shipping and other charges are line items (spec §5.2), so 
 line's `netAmount` and VAL-3 checks `subtotal + totalTax` with no separate charges term; VAL-2's
 base is the line's `netAmount`. A missing amount is a WARN (incomplete), a mismatch a FAIL.
 
+VAL-4, VAL-5 (M4.3): `GstinStateRule` (VAL-4) and `TaxSplitRule` (VAL-5), with the state-code
+table `GstState` (28 states, 8 UTs and 97 Other Territory; legacy codes 25 → 26 and 28 → 37; old
+names such as Orissa and Pondicherry; matching ignores case, punctuation and spacing). The schema
+has no seller-state field, so VAL-4 reads the seller state from `sellerAddress` (the last state
+name in it) and compares it with the GSTIN's code; VAL-5 takes the seller state from a valid seller
+GSTIN, else from `sellerAddress`, and checks each line carrying CGST/SGST/UTGST/IGST (UTGST is
+accepted for SGST). Only the seller GSTIN is checked (the buyer GSTIN is PII and not extracted). A
+pseudonym token, a missing GSTIN on a GST-era invoice, or a seller state or place of supply that
+can't be found is a WARN; no GST taxes or a pre-GST invoice without GSTIN is a PASS.
+
 **Confidence scoring (VAL-8):**
 ```
 docScore = min(field confidences of required fields)

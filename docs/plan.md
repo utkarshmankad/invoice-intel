@@ -126,7 +126,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 - [x] **M4.1** · Rule engine + `ValidationRule` interface + `validation_result` table · *§6.6* · **Done when** rules run and results stored. Done 2026-10-30: `RuleEngine`, `ValidationRule`, `RuleResult`/`RuleOutcome`, `ValidationContext`, `ValidationResultStore`, V8 `validation_result`, `ExtractionId` in `common`; extraction records moved to `common` first (ADR-19, PR #56); architecture §6.6, §7.
 - [x] **M4.2** · VAL-1, VAL-2, VAL-3 arithmetic rules (`BigDecimal`, ±₹1) · *VAL-1..3* · **Done when** parameterized tests pass. Done 2026-10-30: `SubtotalRule` (VAL-1), `TaxAmountRule` (VAL-2), `GrandTotalRule` (VAL-3) in `validate`, ±₹1.00 inclusive at 2 decimals `HALF_UP`; charges are line items, so VAL-1 sums every line and VAL-3 adds no extra term; missing amounts WARN; not wired into the pipeline yet (M4.7); architecture §6.6.
-- [ ] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests.
+- [x] **M4.3** · VAL-4 (GSTIN + state code) and VAL-5 (CGST/SGST vs IGST) with a state-code table · *VAL-4, VAL-5* · **Done when** all states/UTs covered in tests. Done 2026-10-30: `GstState` table (36 states/UTs + 97, legacy 25/28, old names), `GstinStateRule` (VAL-4, seller GSTIN vs state in `sellerAddress`), `TaxSplitRule` (VAL-5, per line); parameterized over every state; architecture §6.6.
 - [x] **M4.4** · VAL-6 tax-regime date rule · *VAL-6* · **Done when** boundary dates tested. Done 2026-10-30: `TaxRegimeDateRule` (pre-2017-07-01 with CGST/SGST/IGST/UTGST or GST era with VAT/CST → FAIL; pre-GST `sellerGstin` → WARN; CESS allowed in both eras; missing date → WARN if any era-specific field, else PASS); boundary and far-date tests. Not wired into the pipeline yet (M4.7).
 - [ ] **M4.5** · VAL-7 amount-in-words parser (Indian numbering) · *VAL-7* · **Done when** lakh/crore/paise cases pass.
 - [ ] **M4.6** · Confidence scorer + decision (AUTO_APPROVED / NEEDS_REVIEW / FAILED) · *VAL-8, §6.6* · **Done when** decision stored with reasons.
@@ -243,6 +243,9 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [ ] `invoice.pii.leak` is registered in `PipelineConfiguration` (M3.7); M4.9 should keep that name and move it next to the other §12 metrics if it centralises them · found in M3.7
 - [ ] `TaxType.CESS` doesn't say whether a cess is GST compensation cess or a pre-GST service-tax cess (Swachh Bharat, Krishi Kalyan), so VAL-6 allows CESS in both eras; decide (owner) whether the schema should split it, which would let VAL-6 flag a GST cess on a pre-GST invoice · found in M4.4
 - [ ] No rule checks the other arithmetic the schema allows: `totalTax` = Σ tax line amounts, line `lineTotal` = `netAmount` + its taxes, `netAmount` = `unitPrice` × `quantity` − `discount`. VAL-3 trusts `totalTax` as extracted; propose spec rules (owner approval) if eval runs (M5) show such errors slipping through · found in M4.2
+- [ ] The extraction schema has no seller-state field, so VAL-4/VAL-5 (M4.3) read the seller state from the last state name in `sellerAddress`; consider adding `sellerState` (Amazon invoices print "State/UT Code") to the schema and prompt, or confirm the address parse on the eval set (M5) · found in M4.3
+- [ ] State names live twice: `pii.internal.IndianStates` (detector context) and `validate.GstState` (M4.3, with codes). Consider moving one table to `common` so the lists can't drift · found in M4.3
+- [ ] VAL-5 accepts UTGST or SGST in every state; decide whether UTGST in a state with a legislature (or SGST in Chandigarh, Ladakh, Lakshadweep, A&N, DNHDD) should WARN · found in M4.3
 
 ---
 
