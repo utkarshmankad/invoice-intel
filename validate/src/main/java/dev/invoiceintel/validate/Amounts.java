@@ -6,12 +6,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /**
- * Money helpers shared by the arithmetic rules VAL-1..VAL-3 (architecture.md §6.6): amounts are
- * {@code BigDecimal} at 2 decimals, {@code HALF_UP}, and agree when they differ by at most ₹1.00.
+ * Money helpers shared by the arithmetic rules VAL-1..VAL-3 and VAL-7 (architecture.md §6.6):
+ * amounts are {@code BigDecimal} at 2 decimals, {@code HALF_UP}, and agree when they differ by at
+ * most ₹1.00.
  */
 final class Amounts {
 
-  /** Inclusive tolerance of VAL-1..VAL-3: a difference of exactly ₹1.00 still passes. */
+  /** Inclusive tolerance of VAL-1..VAL-3 and VAL-7: a difference of exactly ₹1.00 still passes. */
   static final BigDecimal TOLERANCE = new BigDecimal("1.00");
 
   private Amounts() {}
