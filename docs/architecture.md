@@ -792,6 +792,21 @@ NEEDS_REVIEW   otherwise
 ```
 Thresholds are tuned from eval results to meet the false auto-approval target (≤ 2%, spec §9).
 
+Implementation (M4.6): `ConfidenceScorer.decide(extraction, results, context)` returns a
+`Decision(score, outcome, reasons)` with `DecisionOutcome` `AUTO_APPROVED`/`NEEDS_REVIEW`/`FAILED`.
+Factors are `BigDecimal`; the score is rounded `HALF_UP` to 4 decimals and that rounded value is
+compared with the threshold (inclusive). Required fields are the schema's required ones (spec §5.2:
+`@NotNull` in `InvoiceExtraction`, `LineItem` and `TaxLine`), on every line and tax line; a missing
+one counts as 0. A class hint of `OTHER` means the Text stage had none and never disagrees. A FAIL
+scores 0 and is `NEEDS_REVIEW` (a reviewer can correct it); `ConfidenceScorer.missingExtraction()`
+is the `FAILED` decision (PII_LEAK already fails the Extract stage, §5.1). `reasons` lists every rule
+FAIL and WARN (`RULE_FAIL`/`RULE_WARN` with the rule ID and message), then `CLASS_MISMATCH` and, for a
+`NEEDS_REVIEW` without FAIL, `LOW_CONFIDENCE` naming the score, threshold and lowest required field
+path (e.g. `lineItems[0].netAmount`), never values; `EXTRACTION_MISSING` for `FAILED`. The threshold
+is a constructor argument (default `ConfidenceScorer.DEFAULT_APPROVE_THRESHOLD`, 0.85); the Validate
+stage (M4.7) binds it from config. `DecisionStore.replace/find` writes and reads the `decision` row
+inside the caller's transaction.
+
 ### 6.7 Reconcile (`reconcile`)
 
 - **Import (REC-1):** `POST /api/order-history` takes the Amazon CSV. Column mapping lives
@@ -889,6 +904,12 @@ of the latest `SUCCEEDED` Extract run.
 rule_id)`; `outcome` is `PASS`, `WARN` or `FAIL`, and `message` is set exactly for `WARN` and
 `FAIL`; validating an extraction again replaces its rows (no `run_no`); rows cascade-delete with
 their extraction. `ExtractionId` (`common`) is the typed `extraction.id`.
+
+`decision` (V9, M4.6): one row per document, unique `document_id`, replaced when the document is
+validated again; `extraction_id` may be null only for `FAILED`; `score` is `NUMERIC(5,4)` within
+0–1; `outcome` is `AUTO_APPROVED`, `NEEDS_REVIEW` or `FAILED`; `reasons` is a JSON array of
+`{code, ruleId, message}` (PII-8: no values or document text). Rows cascade-delete with their
+document or extraction.
 
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
