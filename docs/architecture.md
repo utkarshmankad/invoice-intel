@@ -770,6 +770,15 @@ inclusive tolerance. Shipping and other charges are line items (spec §5.2), so 
 line's `netAmount` and VAL-3 checks `subtotal + totalTax` with no separate charges term; VAL-2's
 base is the line's `netAmount`. A missing amount is a WARN (incomplete), a mismatch a FAIL.
 
+VAL-7 (M4.5): `AmountInWordsRule` parses `amountInWords` with `AmountInWords` (Indian
+numbering: hundred, thousand, lakh/lac, crore, at most one crore word, which may multiply lakhs
+and thousands; paise after `Rupees` or `and`, ending in `Paise`/`Paisa`; currency words, `and`,
+`only`, punctuation and case ignored; a leading `Minus`/`Negative` is a sign). Out-of-order words
+or digits don't parse. It shares the ±₹1.00 tolerance of VAL-1..VAL-3, so words that leave out
+a total's paise pass; unsigned words are compared with the total's magnitude (credit notes). No
+words is a PASS; unparseable words or a missing `grandTotal` a WARN; a mismatch a FAIL. Messages
+name amounts only, never the words.
+
 **Confidence scoring (VAL-8):**
 ```
 docScore = min(field confidences of required fields)
