@@ -140,7 +140,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M5 — Eval harness and baseline
 
-- [ ] **M5.1** · Label file format (schema + `pii_spans`) and a JSON Schema for it · *EVAL-3, §9.2* · **Done when** format documented in architecture §9.2 (unblocks D5).
+- [x] **M5.1** · Label file format (schema + `pii_spans`) and a JSON Schema for it · *EVAL-3, §9.2* · **Done when** format documented in architecture §9.2 (unblocks D5). Done 2026-11-02 (owner decision: real values, ADR-22): `label-v1.schema.json`, `LabelValidator` (paths and rules only, never values), `./gradlew :eval:checkLabels --args="data/labels data/raw"` (labels keyed by SHA-256 of the original); spans are `{type, page, text}`, which the eval locates in the text layer; architecture §9.2.
 - [ ] **M5.2** · `eval` CLI skeleton with picocli: `run`, `compare` · *EVAL-1* · **Done when** `run` executes on synthetic fixtures.
 - [ ] **M5.3** · Field accuracy and line-item F1 metrics · *EVAL-2* · **Done when** unit tests on hand-made label/output pairs.
 - [ ] **M5.4** · PII recall/precision metric (span overlap ≥ 50%) · *EVAL-2, §6.3* · **Done when** tested on synthetic spans.
