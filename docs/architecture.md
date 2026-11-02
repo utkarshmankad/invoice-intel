@@ -171,7 +171,7 @@ Implementation (M1.4), in `pipeline`:
   stage has a handler. In one transaction it marks the runs of that stage and every later stage
   `SUPERSEDED`, moves the document to the stage's input state and clears any failure; then it
   enqueues the stage. A run that finishes after being superseded rolls back its outputs. The
-  HTTP endpoint (§8) comes with M4.8.
+  HTTP endpoint is `POST /api/documents/{id}/reprocess?fromStage=` (§8, M4.8).
 - The upload controller starts the pipeline for new (non-duplicate) documents. Ingest can't call
   the pipeline itself (§4.1). If enqueueing fails after the upload, the document stays in
   `RECEIVED` until it is reprocessed from `TEXT`.
@@ -960,6 +960,23 @@ state needs a migration; `failed_stage`/`failure_code` are set exactly when stat
 OpenAPI docs at `/swagger-ui.html` (authenticated). Errors use RFC 9457 problem details.
 No endpoint returns raw text, original files or vault values.
 
+Document API (M4.8, ADR-21), in `app`'s `DocumentController`:
+
+- `GET /api/documents?status=` lists the newest 100 documents as `{id, status}`; `status` is a
+  `DocumentState` name, any other value is 400.
+- `GET /api/documents/{id}` returns `{id, status, documentClass, failure, extraction, decision,
+  rules}`: `failure` is `{stage, code}` exactly when `FAILED`; `extraction` is the
+  `InvoiceExtraction` of the latest `SUCCEEDED` Extract run (pseudonymized, as stored after the
+  leak check); `decision` (`{score, outcome, reasons[{code, ruleId, message}]}`) and `rules`
+  (`[{ruleId, outcome, message}]`, by rule ID, for that extraction) appear only while a Validate
+  run is `SUCCEEDED`, so outputs of superseded runs are never shown. `pipeline`'s
+  `DocumentDetailsReader` reads them in one read-only `REPEATABLE READ` transaction; it never
+  reads `text_layer`, `pii_span`, the vault or object storage. Unknown ID is 404.
+- `POST /api/documents/{id}/reprocess?fromStage=` calls `PipelineService.reprocess` and answers
+  202 `{id, fromStage}`; 404 for an unknown document, 409 (`ReprocessNotAllowedException`,
+  detail names stages and states only) when the document hasn't reached the stage or the stage
+  has no handler, 400 for a missing or unknown stage name (`TEXT`, `PII`, `EXTRACT`, `VALIDATE`).
+
 ---
 
 ## 9. Storage layout
@@ -1265,6 +1282,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-18 | LLM providers (owner decision 2026-10-30, M3.8): `spring-ai-ollama` for local models and `spring-ai-anthropic` (Claude through the Messages API) for the cloud, key in `LLM_ANTHROPIC_API_KEY`; clients built from config by `extract`'s `LlmClients`, only for providers the registry uses. Runner's choice in the same PR: the Extract stage is off until `invoice-intel.llm.extraction.model` names a model | Ollama + OpenAI (`spring-ai-openai`, also OpenAI-compatible endpoints); Ollama only, cloud provider later | The owner's choice. Spring AI 2.0's Anthropic module is built on the Anthropic Java SDK, which brings OkHttp 4 and the Kotlin stdlib (like the OpenAI module would); image size and Trivy are checked in the M3.8 PR. Leaving the stage off without a model keeps a fresh setup from calling any model. |
 | ADR-19 | Extraction schema records (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`) live in `common` (`dev.invoiceintel.common.extraction`); `common` gains `jakarta.validation-api` (annotations only, no validator) (owner decision 2026-10-30, M4.1) | Allow `validate → extract` in §4.1; a separate copy of the shape in `validate` | `validate` (§6.6) and `eval` read the extraction, and §4.1 keeps `validate` off `extract` (which brings Spring AI). One definition of the JSONB shape (`extraction.result`) avoids drift. |
 | ADR-20 | One Validate job decides (owner decision 2026-11-02, M4.7): `VALIDATE` runs VAL-1..VAL-7, stores `validation_result` rows and the VAL-8 `decision` in one transaction and moves the document from `EXTRACTED` straight to `AUTO_APPROVED` or `NEEDS_REVIEW` (the handler picks among `Stage.outputs()`); a missing extraction fails the stage with `EXTRACTION_MISSING`; `VALIDATED` stays in the enum but is no longer a resting state | Two jobs as the old §5.1 diagram drew: `VALIDATE` (→ `VALIDATED`) and a new `DECIDE` stage (→ decision), with a migration widening the `stage_run`/`failed_stage` constraints | Rule results and the decision come from the same extraction and are useless apart; one transaction keeps them consistent, needs no migration and no extra reprocess entry point. |
+| ADR-21 | Document detail read model in `pipeline` (M4.8): `DocumentDetailsReader` joins the `document` row, the current extraction and the current decision and rule results into `DocumentDetails`, mapping `validate` types to its own records, and `app` maps that to the response | `app` reads `extract`/`validate` stores directly | `app` may not depend on `extract` (§4.1), and only `pipeline` knows which stage run is current, so superseded outputs can't leak into the API. |
 
 ---
 
