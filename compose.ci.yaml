@@ -27,6 +27,10 @@ services:
       # Throwaway PII keysets (PII-7); the image sets NER_MODEL_DIR.
       TOKEN_KEYSET: ${TOKEN_KEYSET:?run scripts/ci/stack-credentials.sh}
       VAULT_KEYSET: ${VAULT_KEYSET:?run scripts/ci/stack-credentials.sh}
+      # Extract with the local (Ollama) model against the stub, so smoke documents reach a
+      # decision (plan M4.7). Ollama needs no key; the stub answers a fixed extraction.
+      LLM_EXTRACTION_MODEL: local
+      LLM_OLLAMA_BASE_URL: http://llm-stub:8080
     ports:
       - "127.0.0.1:8080:8080"
     # The 2 GB budget of §10.1: an out-of-memory regression fails smoke or performance (NFR-10).
@@ -47,7 +51,8 @@ services:
       retries: 30
 
   # LLM provider stub: every POST answers after 800 ms, imitating a real model's latency
-  # (docs/ci.md §5). Provider-shaped responses are added with the LlmGateway (plan M3.3).
+  # (docs/ci.md §5). Ollama's /api/chat gets a hand-written, schema-valid extraction
+  # (mappings/ollama-chat.json, same values as the app's IT fixture); anything else a placeholder.
   llm-stub:
     image: wiremock/wiremock:3.13.2
     command: ["--disable-banner", "--port", "8080"]

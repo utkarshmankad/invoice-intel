@@ -134,7 +134,10 @@ public final class PipelineService {
       return Boolean.TRUE.equals(
           tx.execute(
               status -> {
-                handler.run(id, runNo);
+                DocumentState output = handler.advance(id, runNo);
+                if (!stage.outputs().contains(output)) {
+                  throw new IllegalStateException("stage " + stage + " cannot move to " + output);
+                }
                 runs.lockDocument(id);
                 if (!runs.endRun(id, stage, runNo, null)) {
                   // A reprocess superseded this run while it ran; drop its outputs.
@@ -142,7 +145,7 @@ public final class PipelineService {
                   log.info("stage run superseded");
                   return false;
                 }
-                runs.setState(id, stage.output());
+                runs.setState(id, output);
                 return true;
               }));
     } catch (StageFailedException e) {

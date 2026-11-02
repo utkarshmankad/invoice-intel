@@ -1,23 +1,28 @@
 package dev.invoiceintel.pipeline;
 
+import java.util.EnumSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * A per-document pipeline stage (architecture.md §5.2): one JobRunr job that moves a document from
- * its {@link #input()} state to its {@link #output()} state. Declared in pipeline order.
+ * its {@link #input()} state to one of its {@link #outputs()}. Declared in pipeline order.
  */
 public enum Stage {
   TEXT(DocumentState.RECEIVED, DocumentState.TEXT_READY),
   PII(DocumentState.TEXT_READY, DocumentState.PII_CLEAN),
   EXTRACT(DocumentState.PII_CLEAN, DocumentState.EXTRACTED),
-  VALIDATE(DocumentState.EXTRACTED, DocumentState.VALIDATED);
+  // The VAL-8 decision picks the output (ADR-20); review is the default, never auto-approval.
+  VALIDATE(DocumentState.EXTRACTED, DocumentState.NEEDS_REVIEW, DocumentState.AUTO_APPROVED);
 
   private final DocumentState input;
   private final DocumentState output;
+  private final Set<DocumentState> outputs;
 
-  Stage(DocumentState input, DocumentState output) {
+  Stage(DocumentState input, DocumentState output, DocumentState... otherOutputs) {
     this.input = input;
     this.output = output;
+    this.outputs = Set.copyOf(EnumSet.of(output, otherOutputs));
   }
 
   /** The state a document must be in for this stage to run. */
@@ -25,9 +30,17 @@ public enum Stage {
     return input;
   }
 
-  /** The state a successful run moves the document to. */
+  /**
+   * The state a successful run moves the document to unless its handler picks another of {@link
+   * #outputs()} ({@link StageHandler#advance}).
+   */
   public DocumentState output() {
     return output;
+  }
+
+  /** Every state a successful run may move the document to. */
+  public Set<DocumentState> outputs() {
+    return outputs;
   }
 
   /** The stage after this one, or empty for the last stage. */

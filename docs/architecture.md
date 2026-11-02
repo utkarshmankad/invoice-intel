@@ -1,6 +1,6 @@
 # Invoice Intel — Architecture
 
-> Status: Draft v0.1 · Last updated: 2026-10-30
+> Status: Draft v0.1 · Last updated: 2026-11-02
 >
 > This document defines **how** the system is built. Requirements and their IDs
 > (`PII-1`, `VAL-5`, …) come from `specs.md`; every design element below points back to them.
@@ -122,12 +122,15 @@ pipeline ◄── app, eval
 ### 5.1 Document state machine
 
 ```
-RECEIVED ─► TEXT_READY ─► PII_CLEAN ─► EXTRACTED ─► VALIDATED ─┬─► AUTO_APPROVED ─┐
-    │            │             │            │                  ├─► NEEDS_REVIEW ──┼─► (REVIEWED) ─► RECONCILED
-    └────────────┴─────────────┴────────────┴──────────────────┴─► FAILED         ┘
+RECEIVED ─► TEXT_READY ─► PII_CLEAN ─► EXTRACTED ─┬─► AUTO_APPROVED ─┐
+    │            │             │            │     ├─► NEEDS_REVIEW ──┼─► (REVIEWED) ─► RECONCILED
+    └────────────┴─────────────┴────────────┴─────┴─► FAILED         ┘
 ```
 
-- Each arrow is one JobRunr job. A job reads its inputs from Postgres/storage, writes its
+- Each stage is one JobRunr job. The Validate job (EXTRACTED →) takes the decision branch
+  itself: it stores the rule results and the VAL-8 decision and moves the document straight to
+  `AUTO_APPROVED` or `NEEDS_REVIEW` (ADR-20). `VALIDATED` stays in the status enum and the
+  `document.status` constraint but is never a resting state. A job reads its inputs from Postgres/storage, writes its
   outputs, then advances the status in the same transaction as its outputs.
 - Re-running a stage replaces that stage's outputs (keyed by `document_id` + `stage` +
   `run_no`) and invalidates downstream stages.
@@ -138,15 +141,20 @@ Implementation (M1.4), in `pipeline`:
 
 - `DocumentState` is the status enum of the diagram (declared in pipeline order). `Stage` is the
   per-document chain `TEXT` (RECEIVED → TEXT_READY), `PII` (→ PII_CLEAN), `EXTRACT`
-  (→ EXTRACTED), `VALIDATE` (→ VALIDATED); the decision branch and reconciliation are added by
-  their tasks. The leak check runs inside `EXTRACT`.
+  (→ EXTRACTED), `VALIDATE` (→ AUTO_APPROVED or NEEDS_REVIEW, M4.7); reconciliation is added by
+  its task. `Stage.outputs()` lists the states a stage may move to and `Stage.output()` is the
+  default (`NEEDS_REVIEW` for `VALIDATE`, so a stage without a decision never auto-approves);
+  `StageHandler.advance` returns the chosen state (by default it calls `run` and returns
+  `output()`), and `PipelineService` rejects a state outside `outputs()` as an unexpected error. The leak check runs inside `EXTRACT`.
 - A stage is a `StageHandler` bean. Every handler bean joins the chain; a stage with no handler
   ends it, so a document stops in the last state that has one. Since M1.10 the Text handler is
   `TextStageHandler` (§6.2) and since M2.10b the PII handler is `PiiStageHandler` (§6.3), so
   documents stopped in `PII_CLEAN`. Since M3.8 the Extract handler is `ExtractStageHandler`
   (§6.5), on only when `invoice-intel.llm.extraction.model` is set, so documents stop in
-  `EXTRACTED` (or in `PII_CLEAN` with no model configured); `PlaceholderStageHandler` remains for
-  tests of stages not built yet.
+  `EXTRACTED` (or in `PII_CLEAN` with no model configured). Since M4.7 the Validate handler is
+  `ValidateStageHandler` (§6.6), always on, so documents with an extraction end in
+  `AUTO_APPROVED` or `NEEDS_REVIEW`; `PlaceholderStageHandler` remains for tests of stages not
+  built yet.
 - `PipelineService.start` enqueues a `StageJob` (JobRunr `JobRequest` holding the document ID and
   stage only, since JobRunr stores it as JSON and shows it on its dashboard; PII-8).
   `StageJobHandler` runs it in three transactions, each first locking the document row
@@ -177,7 +185,7 @@ Implementation (M1.4), in `pipeline`:
 | PII | pii | text layer, page images | `pii_span` rows, vault entries, `RedactedContent` (text + images), redacted PDF | PII-1..5, PII-7 |
 | Extract | extract | `RedactedContent` | `extraction` + `llm_call` rows | EXT-1..5 |
 | Leak check | pii | extraction output | pass/fail | PII-6 |
-| Validate | validate | extraction | `validation_result` rows, decision | VAL-1..8 |
+| Validate | validate | extraction | `validation_result` rows, `decision`; document → `AUTO_APPROVED`/`NEEDS_REVIEW` | VAL-1..8 |
 | Reconcile | reconcile | extraction + order history | `reconciliation_match` | REC-1..4 |
 
 Concurrency: one JobRunr worker pool; LLM-bound jobs run on virtual threads with a
@@ -807,6 +815,16 @@ is a constructor argument (default `ConfidenceScorer.DEFAULT_APPROVE_THRESHOLD`,
 stage (M4.7) binds it from config. `DecisionStore.replace/find` writes and reads the `decision` row
 inside the caller's transaction.
 
+Stage (M4.7, ADR-20): `ValidateStageHandler` in `pipeline` reads the extraction of the latest
+succeeded Extract run (`ExtractionStore.find`, owned by `extract`) and the Text stage's class hint
+(`document.document_class`, `OTHER` when unset), runs VAL-1..VAL-7 in spec order, scores with
+`ConfidenceScorer` (threshold `invoice-intel.validate.approve-threshold`) and, in the stage
+transaction, replaces the extraction's `validation_result` rows and the document's `decision`
+row. The decision's outcome is the document's next state. No succeeded Extract run or no
+extraction row fails the stage with `EXTRACTION_MISSING` (document `FAILED`, `failed_stage =
+VALIDATE`); the failed transaction stores no `FAILED` decision row, the failure columns carry it.
+It logs the outcome, score and number of reasons only (PII-8).
+
 ### 6.7 Reconcile (`reconcile`)
 
 - **Import (REC-1):** `POST /api/order-history` takes the Amazon CSV. Column mapping lives
@@ -996,7 +1014,8 @@ Typed config with `@ConfigurationProperties` under the `invoice-intel.*` prefix:
 local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.models[]`,
 `llm.max-concurrent-calls.<provider>`, `llm.default-max-concurrent-calls` (M3.3),
 `llm.extraction.{model, strategy}`, `llm.ollama.base-url`, `llm.anthropic.{base-url, api-key,
-max-tokens, timeout}` (M3.8),
+max-tokens, timeout}` (M3.8), `validate.approve-threshold` (VAL-8, `VALIDATE_APPROVE_THRESHOLD`,
+default 0.85, within (0, 1]; M4.7),
 `storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
 `max-concurrent-page-jobs`).
 
@@ -1023,7 +1042,7 @@ max-tokens, timeout}` (M3.8),
   server from `LLM_OLLAMA_BASE_URL` (default loopback). Tests point the `local` model at WireMock.
 - The `fly` profile is added in Phase 2 (`deployment.md`).
 - The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
-  (`storage`, `text`, `pii` so far), validated at start-up. A group moves into its own module
+  (`security`, `storage`, `text`, `pii`, `validate` so far), validated at start-up. A group moves into its own module
   when that module gets Spring wiring; `pipeline` is added by the task that uses it; `llm` binds to
   `extract`'s own `LlmProperties` (§6.5, M3.2). `pii` reads `PII_MODE` (default `pseudonymize`) and `NER_MODEL_DIR` (default empty);
   the cross-field checks (a layer on, NER model directory, loopback local LLM) run in
@@ -1217,6 +1236,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-17 | PII stage outputs (owner decision 2026-10-29, M2.10b): `pii_span` rows per run and a shared `pii_vault` (insert-if-absent) written only by `pii`'s `RedactionStore`; OCR pages masked on the stored page image preprocessed again; no table for redacted text, `RedactedContent` rebuilt later from text layer + spans + redacted pages | Storing the preprocessed image as another blob kind; a `redacted_text` table | Preprocessing is deterministic, so a second image per page and a `blob_ref` kind change aren't needed; one source of truth for spans avoids redacted text drifting from them. |
 | ADR-18 | LLM providers (owner decision 2026-10-30, M3.8): `spring-ai-ollama` for local models and `spring-ai-anthropic` (Claude through the Messages API) for the cloud, key in `LLM_ANTHROPIC_API_KEY`; clients built from config by `extract`'s `LlmClients`, only for providers the registry uses. Runner's choice in the same PR: the Extract stage is off until `invoice-intel.llm.extraction.model` names a model | Ollama + OpenAI (`spring-ai-openai`, also OpenAI-compatible endpoints); Ollama only, cloud provider later | The owner's choice. Spring AI 2.0's Anthropic module is built on the Anthropic Java SDK, which brings OkHttp 4 and the Kotlin stdlib (like the OpenAI module would); image size and Trivy are checked in the M3.8 PR. Leaving the stage off without a model keeps a fresh setup from calling any model. |
 | ADR-19 | Extraction schema records (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`) live in `common` (`dev.invoiceintel.common.extraction`); `common` gains `jakarta.validation-api` (annotations only, no validator) (owner decision 2026-10-30, M4.1) | Allow `validate → extract` in §4.1; a separate copy of the shape in `validate` | `validate` (§6.6) and `eval` read the extraction, and §4.1 keeps `validate` off `extract` (which brings Spring AI). One definition of the JSONB shape (`extraction.result`) avoids drift. |
+| ADR-20 | One Validate job decides (owner decision 2026-11-02, M4.7): `VALIDATE` runs VAL-1..VAL-7, stores `validation_result` rows and the VAL-8 `decision` in one transaction and moves the document from `EXTRACTED` straight to `AUTO_APPROVED` or `NEEDS_REVIEW` (the handler picks among `Stage.outputs()`); a missing extraction fails the stage with `EXTRACTION_MISSING`; `VALIDATED` stays in the enum but is no longer a resting state | Two jobs as the old §5.1 diagram drew: `VALIDATE` (→ `VALIDATED`) and a new `DECIDE` stage (→ decision), with a migration widening the `stage_run`/`failed_stage` constraints | Rule results and the decision come from the same extraction and are useless apart; one transaction keeps them consistent, needs no migration and no extra reprocess entry point. |
 
 ---
 

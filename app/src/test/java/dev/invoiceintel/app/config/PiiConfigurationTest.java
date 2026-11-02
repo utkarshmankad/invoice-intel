@@ -44,7 +44,8 @@ class PiiConfigurationTest {
               "invoice-intel.pii.detectors.local-llm=false",
               "invoice-intel.pii.ner.model-dir=" + MODEL_DIR,
               "invoice-intel.pii.ner.threshold=0.5",
-              "invoice-intel.pii.local-llm.endpoint=http://127.0.0.1:11434");
+              "invoice-intel.pii.local-llm.endpoint=http://127.0.0.1:11434",
+              "invoice-intel.validate.approve-threshold=0.85");
 
   @Test
   void start_withModelAndKeysets_loadsNerAndKeys() {

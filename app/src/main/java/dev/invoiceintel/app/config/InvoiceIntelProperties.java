@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,7 +29,8 @@ public record InvoiceIntelProperties(
     @Valid @NotNull Security security,
     @Valid @NotNull Storage storage,
     @Valid @NotNull Text text,
-    @Valid @NotNull Pii pii) {
+    @Valid @NotNull Pii pii,
+    @Valid @NotNull Validate validate) {
 
   /**
    * The single admin user (NFR-2, architecture.md §11); the password comes from the environment.
@@ -117,4 +119,11 @@ public record InvoiceIntelProperties(
           new PiiSettings.LocalLlm(detectors.localLlm(), localLlm.endpoint()));
     }
   }
+
+  /**
+   * Validate stage (VAL-8, architecture.md §6.6): documents scoring at least {@code
+   * approveThreshold} with no failed rule are auto-approved. Tuned from eval runs (spec §9).
+   */
+  public record Validate(
+      @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1") BigDecimal approveThreshold) {}
 }
