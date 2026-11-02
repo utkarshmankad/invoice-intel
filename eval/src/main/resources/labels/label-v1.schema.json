@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://invoice-intel.dev/schemas/label-v1.schema.json",
+  "title": "Invoice Intel label, version 1",
+  "description": "Ground truth for one invoice (architecture.md §9.2, EVAL-3). Values are written as printed on the document, real values included; label files live only in git-ignored data/labels/ (.claude/rules/pii.md). File name: <sha256>.json. LabelValidator enforces the same rules plus checks JSON Schema can't express (valid calendar dates, unique line numbers, duplicate spans, file name).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "sha256", "synthetic", "fields", "piiSpans"],
+  "properties": {
+    "version": { "const": 1 },
+    "sha256": {
+      "description": "Lower-case hex SHA-256 of the original file's bytes, the same key as document.sha256 (ING-2). Never the file name, which may hold an order number.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "synthetic": {
+      "description": "true for generated or degraded test documents (specs §4.3), false for real invoices.",
+      "type": "boolean"
+    },
+    "notes": {
+      "description": "Optional labelling notes. No personal data.",
+      "type": ["string", "null"]
+    },
+    "fields": { "$ref": "#/$defs/fields" },
+    "piiSpans": {
+      "description": "Every distinct piece of PII per page (spec §6.1). One entry covers all occurrences of the same text on that page.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/piiSpan" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "optionalText": { "oneOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "optionalDate": { "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+    "amount": {
+      "description": "Rupees as printed, exactly two decimals, as a string so no precision is lost.",
+      "type": "string",
+      "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+    },
+    "optionalAmount": { "oneOf": [{ "$ref": "#/$defs/amount" }, { "type": "null" }] },
+    "decimal": {
+      "description": "A quantity or tax rate in percent, as a string.",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]{1,6})?$"
+    },
+    "optionalDecimal": { "oneOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "fields": {
+      "description": "The extraction schema (architecture.md §6.5) as plain values: no confidence, source or evidence. Every key is present; null means the document doesn't show the value.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "documentClass", "invoiceNumber", "invoiceDate", "orderNumber", "orderDate",
+        "sellerName", "sellerGstin", "sellerPan", "sellerAddress", "placeOfSupply",
+        "placeOfDelivery", "buyerState", "reverseCharge", "currency", "subtotal", "totalTax",
+        "grandTotal", "amountInWords", "originalInvoiceRef", "lineItems"
+      ],
+      "properties": {
+        "documentClass": {
+          "enum": ["TAX_INVOICE", "CREDIT_NOTE", "BILL_OF_SUPPLY", "PRE_GST_INVOICE", "OTHER"]
+        },
+        "invoiceNumber": { "$ref": "#/$defs/optionalText" },
+        "invoiceDate": { "$ref": "#/$defs/optionalDate" },
+        "orderNumber": { "$ref": "#/$defs/optionalText" },
+        "orderDate": { "$ref": "#/$defs/optionalDate" },
+        "sellerName": { "$ref": "#/$defs/optionalText" },
+        "sellerGstin": { "$ref": "#/$defs/optionalText" },
+        "sellerPan": { "$ref": "#/$defs/optionalText" },
+        "sellerAddress": { "$ref": "#/$defs/optionalText" },
+        "placeOfSupply": { "$ref": "#/$defs/optionalText" },
+        "placeOfDelivery": { "$ref": "#/$defs/optionalText" },
+        "buyerState": { "$ref": "#/$defs/optionalText" },
+        "reverseCharge": { "type": ["boolean", "null"] },
+        "currency": { "enum": ["INR"] },
+        "subtotal": { "$ref": "#/$defs/optionalAmount" },
+        "totalTax": { "$ref": "#/$defs/optionalAmount" },
+        "grandTotal": { "$ref": "#/$defs/amount" },
+        "amountInWords": { "$ref": "#/$defs/optionalText" },
+        "originalInvoiceRef": { "$ref": "#/$defs/optionalText" },
+        "lineItems": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/lineItem" }
+        }
+      }
+    },
+    "lineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineNo", "chargeType", "description", "hsnSac", "unitPrice", "quantity", "discount",
+        "netAmount", "taxLines", "lineTotal"
+      ],
+      "properties": {
+        "lineNo": { "type": "integer", "minimum": 1 },
+        "chargeType": { "enum": ["PRODUCT", "SHIPPING", "CONVENIENCE", "OTHER"] },
+        "description": { "$ref": "#/$defs/text" },
+        "hsnSac": { "$ref": "#/$defs/optionalText" },
+        "unitPrice": { "$ref": "#/$defs/optionalAmount" },
+        "quantity": { "$ref": "#/$defs/optionalDecimal" },
+        "discount": { "$ref": "#/$defs/optionalAmount" },
+        "netAmount": { "$ref": "#/$defs/optionalAmount" },
+        "taxLines": {
+          "description": "Empty when the line shows no tax (bill of supply, some pre-GST invoices).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/taxLine" }
+        },
+        "lineTotal": { "$ref": "#/$defs/amount" }
+      }
+    },
+    "taxLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "rate", "amount"],
+      "properties": {
+        "type": { "enum": ["CGST", "SGST", "IGST", "UTGST", "CESS", "VAT", "CST"] },
+        "rate": { "$ref": "#/$defs/decimal" },
+        "amount": { "$ref": "#/$defs/amount" }
+      }
+    },
+    "piiSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "page", "text"],
+      "properties": {
+        "type": {
+          "enum": [
+            "PERSON", "ADDRESS", "PIN_CODE", "PHONE", "EMAIL", "PAN", "AADHAAR", "GSTIN",
+            "ORDER_NUMBER", "INVOICE_NUMBER"
+          ]
+        },
+        "page": { "type": "integer", "minimum": 1 },
+        "text": {
+          "description": "The PII exactly as printed; line breaks inside it may be written as single spaces.",
+          "$ref": "#/$defs/text"
+        }
+      }
+    }
+  }
+}

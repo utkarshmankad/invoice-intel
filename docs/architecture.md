@@ -1015,13 +1015,62 @@ credentials from `access-key`/`secret-key`.
 ```
 data/raw/                 git-ignored; drop zone for downloaded invoices
 data/order-history/       git-ignored; Amazon export
-data/labels/              git-ignored; hand labels (contain pseudonymized values only, still kept private)
+data/labels/              git-ignored; hand labels with real values (handled like data/raw/, ADR-22)
 data/samples-redacted/    committed; irreversibly redacted PDFs + expected JSON
 eval-reports/             committed; metrics only
 ```
 
-Label format: one JSON file per document matching the extraction schema, plus `pii_spans`
-for PII evaluation.
+#### Label format (M5.1, EVAL-3, ADR-22)
+
+One JSON file per document, `data/labels/<sha256>.json`, keyed by the SHA-256 of the
+original's bytes (the `document.sha256` dedupe key, ING-2). Never keyed by file name, which
+may hold an order number. JSON Schema: `eval/src/main/resources/labels/label-v1.schema.json`;
+`dev.invoiceintel.eval.label.LabelValidator` enforces the same rules plus real calendar dates,
+unique line numbers, no repeated spans and the file name.
+
+```json
+{
+  "version": 1,
+  "sha256": "<64 lower-case hex>",
+  "synthetic": false,
+  "notes": "optional, no personal data",
+  "fields": {
+    "documentClass": "TAX_INVOICE", "invoiceNumber": "…", "invoiceDate": "2024-03-15",
+    "orderNumber": "…", "orderDate": null, "sellerName": "…", "sellerGstin": null,
+    "sellerPan": null, "sellerAddress": null, "placeOfSupply": null, "placeOfDelivery": null,
+    "buyerState": "Maharashtra", "reverseCharge": false, "currency": "INR",
+    "subtotal": "1040.00", "totalTax": "187.20", "grandTotal": "1227.20",
+    "amountInWords": null, "originalInvoiceRef": null,
+    "lineItems": [{ "lineNo": 1, "chargeType": "PRODUCT", "description": "…", "hsnSac": "7323",
+      "unitPrice": "500.00", "quantity": "2", "discount": null, "netAmount": "1000.00",
+      "taxLines": [{ "type": "IGST", "rate": "18", "amount": "180.00" }],
+      "lineTotal": "1180.00" }]
+  },
+  "piiSpans": [{ "type": "PERSON", "page": 1, "text": "…" }]
+}
+```
+
+- **`fields`** is the extraction schema (§6.5) as plain values, with no confidence, source or
+  evidence. Every key is present. `null` means the document doesn't show the value; the eval
+  scores a null label against a non-null extraction as a mismatch. Only `documentClass`,
+  `currency`, `grandTotal` and a non-empty `lineItems` (each with `lineNo`, `chargeType`,
+  `description`, `lineTotal`) are required to be non-null. `taxLines` is empty when a line
+  shows no tax.
+- **Values as printed, real values included.** Amounts are strings with exactly two decimals
+  (`"1234.50"`), quantities and tax rates (percent) are decimal strings, dates are
+  `YYYY-MM-DD`. Invoice and order numbers are written as printed; the eval turns them into
+  tokens with the run's `TOKEN_KEYSET` before comparing them with the pseudonymized extraction
+  (§6.3), so labels outlive a key rotation.
+- **`piiSpans`**: one entry per distinct piece of PII per page (spec §6.1): `type` (the
+  `PiiType` names, `INVOICE_NUMBER` and `ORDER_NUMBER` included), 1-based `page` and `text` as
+  printed. The eval finds every occurrence of the text on that page in the Text stage's
+  `PageText` (whitespace collapsed, case ignored) and scores detected spans against them with
+  ≥ 50% overlap (§6.9). Labellers never deal with character offsets.
+- **Checking:** `./gradlew :eval:checkLabels --args="data/labels data/raw"` validates every
+  label and that each label's SHA-256 matches a file in the raw folder. It prints label file
+  names (hashes), JSON paths, rules and counts only, never a value or a raw file name.
+- `synthetic: true` marks generated or degraded documents (specs §4.3). REV-4's export
+  (§6.8) writes this same format.
 
 ---
 
@@ -1290,6 +1339,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-19 | Extraction schema records (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`) live in `common` (`dev.invoiceintel.common.extraction`); `common` gains `jakarta.validation-api` (annotations only, no validator) (owner decision 2026-10-30, M4.1) | Allow `validate → extract` in §4.1; a separate copy of the shape in `validate` | `validate` (§6.6) and `eval` read the extraction, and §4.1 keeps `validate` off `extract` (which brings Spring AI). One definition of the JSONB shape (`extraction.result`) avoids drift. |
 | ADR-20 | One Validate job decides (owner decision 2026-11-02, M4.7): `VALIDATE` runs VAL-1..VAL-7, stores `validation_result` rows and the VAL-8 `decision` in one transaction and moves the document from `EXTRACTED` straight to `AUTO_APPROVED` or `NEEDS_REVIEW` (the handler picks among `Stage.outputs()`); a missing extraction fails the stage with `EXTRACTION_MISSING`; `VALIDATED` stays in the enum but is no longer a resting state | Two jobs as the old §5.1 diagram drew: `VALIDATE` (→ `VALIDATED`) and a new `DECIDE` stage (→ decision), with a migration widening the `stage_run`/`failed_stage` constraints | Rule results and the decision come from the same extraction and are useless apart; one transaction keeps them consistent, needs no migration and no extra reprocess entry point. |
 | ADR-21 | Document detail read model in `pipeline` (M4.8): `DocumentDetailsReader` joins the `document` row, the current extraction and the current decision and rule results into `DocumentDetails`, mapping `validate` types to its own records, and `app` maps that to the response | `app` reads `extract`/`validate` stores directly | `app` may not depend on `extract` (§4.1), and only `pipeline` knows which stage run is current, so superseded outputs can't leak into the API. |
+| ADR-22 | Hand labels hold real values as printed, kept private in git-ignored `data/labels/` and handled like `data/raw/` (`.claude/rules/pii.md`); the eval tokenizes PII fields and locates span text at run time (owner decision 2026-11-02, M5.1) | Pseudonymized labels (tokens and character offsets), as this section said before | The owner can't compute keyed tokens or text-layer offsets by hand, so pseudonymized labels would need a helper that runs the Text stage, and every label would break on a `TOKEN_KEYSET` rotation. `pii.md` already treats `data/labels/` as real personal data, so the risk doesn't change. |
 | ADR-23 | One JobRunr job runs a document's chain: `StageJob` starts at a stage and `PipelineService` runs each following stage in the same job; `start` and `reprocess` still enqueue. Stage runs, transactions, failures and supersede checks are unchanged (owner decision 2026-11-02, M4.12) | One job per stage (enqueue the next stage after commit), as before | Every enqueue waited for a JobRunr pickup (the first one up to the 15 s poll interval, later hand-offs about 3 s), which put the CI time to decision over the 20 s of NFR-3 (p95 up to 25 s). A failed stage already stops the chain and isn't retried by JobRunr, so separate jobs bought nothing. |
 
 ---

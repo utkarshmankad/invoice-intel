@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "sha256": "18cd4a50fa69ff7d2d38ca3310f6f9dc420d1fcc4202e115c3f315c6d030fe0e",
+  "synthetic": true,
+  "fields": {
+    "documentClass": "BILL_OF_SUPPLY",
+    "invoiceNumber": "SYN-BOS-0002",
+    "invoiceDate": "2023-11-02",
+    "orderNumber": null,
+    "orderDate": null,
+    "sellerName": "Example Books Store",
+    "sellerGstin": null,
+    "sellerPan": null,
+    "sellerAddress": null,
+    "placeOfSupply": null,
+    "placeOfDelivery": null,
+    "buyerState": "Karnataka",
+    "reverseCharge": null,
+    "currency": "INR",
+    "subtotal": null,
+    "totalTax": null,
+    "grandTotal": "299.00",
+    "amountInWords": null,
+    "originalInvoiceRef": null,
+    "lineItems": [
+      {
+        "lineNo": 1,
+        "chargeType": "PRODUCT",
+        "description": "Paperback novel",
+        "hsnSac": "4901",
+        "unitPrice": "299.00",
+        "quantity": "1",
+        "discount": null,
+        "netAmount": "299.00",
+        "taxLines": [],
+        "lineTotal": "299.00"
+      }
+    ]
+  },
+  "piiSpans": []
+}
