@@ -11,7 +11,7 @@
     "orderDate": "2024-03-14",
     "sellerName": "Example Retail Private Limited",
     "sellerGstin": "29AAACE0000A1Z5",
-    "sellerPan": "AAACE0000A",
+    "sellerPan": null,
     "sellerAddress": "Plot 4, Industrial Area, Bengaluru, Karnataka",
     "placeOfSupply": "Maharashtra",
     "placeOfDelivery": "Maharashtra",
