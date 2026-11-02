@@ -54,6 +54,14 @@ final class PerfConfig {
     return intValue(profile + ".duration-seconds");
   }
 
+  /**
+   * A load value of the active profile, e.g. {@code pipeline-documents} → {@code
+   * ci.pipeline-documents}.
+   */
+  int profileInt(String key) {
+    return intValue(profile + "." + key);
+  }
+
   int intValue(String key) {
     String value = thresholds.getProperty(key);
     if (value == null) {
