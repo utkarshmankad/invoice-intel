@@ -2,6 +2,7 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :eval:dependencies --write-locks
+com.fasterxml.jackson.core:jackson-annotations:2.21=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 com.github.spotbugs:spotbugs-annotations:4.10.5=spotbugs
 com.github.spotbugs:spotbugs:4.10.5=spotbugs
 com.github.stephenc.jcip:jcip-annotations:1.0-1=spotbugs
@@ -49,4 +50,7 @@ org.slf4j:slf4j-api:2.0.20=compileClasspath,integrationTestCompileClasspath,inte
 org.slf4j:slf4j-simple:2.0.17=spotbugsSlf4j
 org.springframework.boot:spring-boot-dependencies:4.1.2=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.xmlresolver:xmlresolver:5.3.3=spotbugs
+tools.jackson.core:jackson-core:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson.core:jackson-databind:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+tools.jackson:jackson-bom:3.1.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 empty=annotationProcessor,integrationTestAnnotationProcessor,testAnnotationProcessor
