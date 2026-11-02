@@ -1055,7 +1055,8 @@ default 0.85, within (0, 1]; M4.7),
   `invoice-intel.pii.ner.model-dir`, with `ai.djl.offline=true` everywhere (ADR-16). Local runs
   export `TOKEN_KEYSET` and `VAULT_KEYSET` in the shell (`.env` is a Spring property source, not
   the process environment).
-- Actuator exposes only `/actuator/health` over HTTP, without details.
+- Actuator exposes `/actuator/health` (public, without details) and `/actuator/metrics` (admin
+  login, §12) over HTTP (`management.endpoints.web.exposure.include: health,metrics`, M4.9).
 - JobRunr (`jobrunr.*`, M1.4) uses the app's datasource and creates its own tables. The
   background job server is on in `application.yaml` and off in `application-test.yaml`, so only
   tests that enable it (`PipelineIT`) run stage jobs. The JobRunr dashboard is off (it would
@@ -1092,6 +1093,7 @@ render/OCR jobs (config, default 2).
   route for Basic auth (ADR-12). API clients send `Authorization` on the first request.
 - Public without login: `/actuator/health` and `/error` (the status page of a rejected
   request; guarding it would turn every 401/403 into a login redirect).
+  `/actuator/metrics` (§12) needs the form login like the UI.
 - All services bind to `127.0.0.1` locally (NFR-2).
 - Secrets only from env / secret store (NFR-12). `.env` is git-ignored; `.env.example` is committed.
 - Logging: code logs only IDs, stages and codes (PII-8). Console logs are JSON lines in
@@ -1118,8 +1120,34 @@ render/OCR jobs (config, default 2).
 | `invoice.pii.spans` | counter | `type`, `detector` |
 | `invoice.pii.leak` | counter | — (must stay 0) |
 
-Logs are JSON with `documentId`, `stage`, `runNo`. Locally, `/actuator/metrics` and the
-JobRunr dashboard are enough; Prometheus/Grafana are optional.
+Implementation (M4.9): modules report events through the port
+`dev.invoiceintel.common.metrics.InvoiceMetrics` (no-op `NONE` by default), so only `app`
+depends on Micrometer; `app`'s `MicrometerInvoiceMetrics` (bean in `PipelineConfiguration`)
+registers every meter above.
+
+- `invoice.stage.duration`: recorded by `PipelineService` after each run's transaction ends, from
+  the start of the handler to the run's end; `stage` is the `Stage` name, `outcome` the run's end
+  status as in `stage_run.status`: `SUCCEEDED`, `FAILED` or `SUPERSEDED`. Skipped runs (document
+  not in the input state) record nothing.
+- `invoice.decision`: `outcome` is the VAL-8 outcome (§6.6): `AUTO_APPROVED`/`NEEDS_REVIEW` when a
+  Validate run commits, `FAILED` when the document fails with a §6.6 `FAILED` decision code
+  (`EXTRACT PII_LEAK`, `VALIDATE EXTRACTION_MISSING`). Other stage failures are not decisions.
+- `invoice.llm.tokens` / `invoice.llm.cost`: one increment per model call, alongside its
+  `llm_call` row (`LlmCallLog.metered`), including failed and repair calls and calls of a run that
+  later rolls back, since their tokens were spent. `provider` and `model` are the registry's
+  provider and model ID; `direction` is `input` or `output`; cost has base unit `usd` (a double in
+  Micrometer; the exact `BigDecimal` stays in `llm_call.cost_usd`).
+- `invoice.pii.spans`: one increment per stored span, after the PII run commits; `type` is the
+  `PiiType` name, `detector` the span's stored detector name (merged spans join names with `+`).
+- `invoice.pii.leak`: registered at start-up so it reads 0; incremented by the `LeakChecker`
+  listener.
+
+Tags carry only stage names, status codes, provider/model IDs, PII types and detector names, never
+field values, text or document IDs (PII-8; document IDs would also make tags unbounded). Tagged
+meters appear in `/actuator/metrics` after their first event.
+
+Logs are JSON with `documentId`, `stage`, `runNo`. Locally, `/actuator/metrics` (admin login,
+§11) and the JobRunr dashboard are enough; Prometheus/Grafana are optional.
 
 ---
 

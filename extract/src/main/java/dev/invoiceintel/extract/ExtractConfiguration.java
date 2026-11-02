@@ -1,6 +1,8 @@
 package dev.invoiceintel.extract;
 
+import dev.invoiceintel.common.metrics.InvoiceMetrics;
 import jakarta.validation.Validator;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,13 +28,18 @@ public class ExtractConfiguration {
 
   @Bean
   SpringAiLlmGateway llmGateway(
-      LlmProperties properties, ModelRegistry registry, Validator validator, JdbcClient jdbc) {
+      LlmProperties properties,
+      ModelRegistry registry,
+      Validator validator,
+      JdbcClient jdbc,
+      ObjectProvider<InvoiceMetrics> metrics) {
     return new SpringAiLlmGateway(
         registry,
         LlmClients.create(properties),
         properties.rateLimiter(),
         validator,
-        new JdbcLlmCallLog(jdbc));
+        LlmCallLog.metered(
+            new JdbcLlmCallLog(jdbc), metrics.getIfAvailable(() -> InvoiceMetrics.NONE)));
   }
 
   @Bean
