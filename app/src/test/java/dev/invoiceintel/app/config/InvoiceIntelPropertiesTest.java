@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.invoiceintel.pii.RedactionMode;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
@@ -36,7 +39,8 @@ class InvoiceIntelPropertiesTest {
               "invoice-intel.pii.detectors.local-llm=false",
               "invoice-intel.pii.ner.model-dir=/models/ner",
               "invoice-intel.pii.ner.threshold=0.5",
-              "invoice-intel.pii.local-llm.endpoint=http://127.0.0.1:11434");
+              "invoice-intel.pii.local-llm.endpoint=http://127.0.0.1:11434",
+              "invoice-intel.validate.approve-threshold=0.85");
 
   @Test
   void bind_validProperties_exposesTypedValues() {
@@ -221,6 +225,32 @@ class InvoiceIntelPropertiesTest {
   void bind_nerThresholdOutOfRange_failsStartup() {
     runner
         .withPropertyValues("invoice-intel.pii.ner.threshold=0")
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void bind_approveThreshold_exposesBigDecimal() {
+    runner
+        .withPropertyValues("invoice-intel.validate.approve-threshold=0.9")
+        .run(
+            context ->
+                assertThat(
+                        context.getBean(InvoiceIntelProperties.class).validate().approveThreshold())
+                    .isEqualByComparingTo(new BigDecimal("0.9")));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"0", "1.01", "-0.5"})
+  void bind_approveThresholdOutsideZeroToOne_failsStartup(String threshold) {
+    runner
+        .withPropertyValues("invoice-intel.validate.approve-threshold=" + threshold)
+        .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void bind_missingApproveThreshold_failsStartup() {
+    runner
+        .withPropertyValues("invoice-intel.validate.approve-threshold=")
         .run(context -> assertThat(context).hasFailed());
   }
 }

@@ -77,6 +77,10 @@ invoice-intel:
     # No default key: an Anthropic model can only be chosen once LLM_ANTHROPIC_API_KEY is set.
     anthropic:
       api-key: ${LLM_ANTHROPIC_API_KEY:}
+  # Validate stage (VAL-8, architecture.md §6.6): the auto-approval threshold, tuned from eval
+  # runs to keep false auto-approvals at or below 2% (spec §9).
+  validate:
+    approve-threshold: ${VALIDATE_APPROVE_THRESHOLD:0.85}
 
 # Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its
 # own tables. The dashboard stays off: it would listen on its own port without the app's login.

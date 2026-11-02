@@ -10,6 +10,7 @@ import dev.invoiceintel.pipeline.PipelineService;
 import dev.invoiceintel.pipeline.StageHandler;
 import dev.invoiceintel.pipeline.StageJobHandler;
 import dev.invoiceintel.pipeline.TextStageHandler;
+import dev.invoiceintel.pipeline.ValidateStageHandler;
 import dev.invoiceintel.storage.BlobStore;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -73,6 +74,15 @@ public class PipelineConfiguration {
         settings.mode(),
         new PiiStageHandler.Settings(
             properties.storage().bucketRedacted(), properties.text().dpi()));
+  }
+
+  /**
+   * Validate stage: rule results and the VAL-8 decision, which moves the document to AUTO_APPROVED
+   * or NEEDS_REVIEW (architecture.md §5.1, §6.6, ADR-20).
+   */
+  @Bean
+  ValidateStageHandler validateStage(JdbcClient jdbc, InvoiceIntelProperties properties) {
+    return new ValidateStageHandler(jdbc, properties.validate().approveThreshold());
   }
 
   /**

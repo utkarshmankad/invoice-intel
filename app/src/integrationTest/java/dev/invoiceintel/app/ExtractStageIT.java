@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The Extract stage (architecture.md §5.2, §6.5) behind the real Text and PII stages: a synthetic
- * invoice reaches EXTRACTED with a stubbed model, and the leak check (PII-6, §6.3) runs on the
+ * invoice gets past EXTRACTED with a stubbed model, and the leak check (PII-6, §6.3) runs on the
  * model's raw response against the vault entries the PII stage stored. The model is the local
  * Ollama provider pointed at WireMock; responses are hand-written from the schema (testing.md).
  */
@@ -58,6 +59,8 @@ import tools.jackson.databind.json.JsonMapper;
 class ExtractStageIT {
 
   private static final Duration TIMEOUT = Duration.ofSeconds(90);
+  private static final Set<String> EXTRACTED_OR_LATER =
+      Set.of("EXTRACTED", "AUTO_APPROVED", "NEEDS_REVIEW");
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final WireMockServer WIREMOCK = new WireMockServer(wireMockConfig().dynamicPort());
 
@@ -92,7 +95,7 @@ class ExtractStageIT {
 
     DocumentId id = run(invoice);
 
-    awaitStatus(id, "EXTRACTED");
+    awaitExtracted(id);
     Map<String, Object> row =
         jdbc.sql(
                 "SELECT strategy, prompt_version, result->'grandTotal'->>'value' AS total"
@@ -150,8 +153,8 @@ class ExtractStageIT {
     stubModel(extractionJson());
     DocumentId firstId = run(first);
     DocumentId secondId = run(second);
-    awaitStatus(firstId, "EXTRACTED");
-    awaitStatus(secondId, "EXTRACTED");
+    awaitExtracted(firstId);
+    awaitExtracted(secondId);
 
     String secondName = second.buyer().name();
     assertThat(leakChecker.check(secondId, "name: " + secondName).leakedTypes())
@@ -223,6 +226,22 @@ class ExtractStageIT {
                     .query(String.class)
                     .single()
                     .equals(expected));
+  }
+
+  /**
+   * Waits until the document has passed the Extract stage. The Validate stage follows at once, so
+   * the document may already be in its decision state (ADR-20).
+   */
+  private void awaitExtracted(DocumentId id) {
+    await()
+        .atMost(TIMEOUT)
+        .until(
+            () ->
+                EXTRACTED_OR_LATER.contains(
+                    jdbc.sql("SELECT status FROM document WHERE id = ?")
+                        .param(id.value())
+                        .query(String.class)
+                        .single()));
   }
 
   private String failure(DocumentId id) {

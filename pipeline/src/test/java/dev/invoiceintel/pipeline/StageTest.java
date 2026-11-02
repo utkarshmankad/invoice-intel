@@ -2,6 +2,7 @@ package dev.invoiceintel.pipeline;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.invoiceintel.common.DocumentId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -30,5 +31,31 @@ class StageTest {
   void text_movesReceivedToTextReady() {
     assertThat(Stage.TEXT.input()).isEqualTo(DocumentState.RECEIVED);
     assertThat(Stage.TEXT.output()).isEqualTo(DocumentState.TEXT_READY);
+  }
+
+  @ParameterizedTest
+  @EnumSource(Stage.class)
+  void outputs_containDefaultOutput(Stage stage) {
+    assertThat(stage.outputs()).contains(stage.output());
+  }
+
+  @Test
+  void validate_branchesToDecisionStatesAndDefaultsToReview() {
+    assertThat(Stage.VALIDATE.outputs())
+        .containsExactlyInAnyOrder(DocumentState.AUTO_APPROVED, DocumentState.NEEDS_REVIEW);
+    assertThat(Stage.VALIDATE.output()).isEqualTo(DocumentState.NEEDS_REVIEW);
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = Stage.class, names = "VALIDATE", mode = EnumSource.Mode.EXCLUDE)
+  void outputs_singleOutputStages_haveOne(Stage stage) {
+    assertThat(stage.outputs()).containsExactly(stage.output());
+  }
+
+  @Test
+  void advance_defaultImplementation_runsAndReturnsDefaultOutput() {
+    var handler = new PlaceholderStageHandler(Stage.PII);
+
+    assertThat(handler.advance(DocumentId.random(), 1)).isEqualTo(DocumentState.PII_CLEAN);
   }
 }

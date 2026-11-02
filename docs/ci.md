@@ -122,7 +122,7 @@ using synthetic fixtures. API calls use HTTP Basic with a password generated per
 | Admin credentials accepted | M0.7 |
 | Upload synthetic invoice returns an ID | M1.3 (when the smoke fixture exists) |
 | Duplicate upload returns the same ID | M1.3 |
-| Document reaches an accepted status within 120 s, never `FAILED` | M1.3 onward via `GET /api/documents/{id}`. M1.3–M1.9 also accept `RECEIVED` (no Text job yet; owner decision 2026-10-28); M1.10 removes it. Until M4.7 any status from `TEXT_READY` onward is accepted, then `SMOKE_EXPECT_STATUSES` in `ci.yml` narrows to `AUTO_APPROVED,NEEDS_REVIEW` |
+| Document reaches an accepted status within 120 s, never `FAILED` | M1.3 onward via `GET /api/documents/{id}`. M1.3–M1.9 also accept `RECEIVED` (no Text job yet; owner decision 2026-10-28); M1.10 removes it. Until M4.7 any status from `TEXT_READY` onward was accepted; since M4.7 `SMOKE_EXPECT_STATUSES` in `ci.yml` is `AUTO_APPROVED,NEEDS_REVIEW`. `compose.ci.yaml` runs the Extract stage with the `local` (Ollama) model against the WireMock stub, whose `/api/chat` mapping (`scripts/ci/wiremock/mappings/ollama-chat.json`) answers a hand-written extraction with the 800 ms latency |
 
 ---
 

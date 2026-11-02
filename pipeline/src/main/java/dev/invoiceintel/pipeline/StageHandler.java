@@ -1,6 +1,7 @@
 package dev.invoiceintel.pipeline;
 
 import dev.invoiceintel.common.DocumentId;
+import java.util.Objects;
 
 /**
  * The work of one stage. {@link PipelineService} calls it inside the transaction that marks the
@@ -19,4 +20,16 @@ public interface StageHandler {
    * @throws StageFailedException for an expected failure; the document becomes {@code FAILED}
    */
   void run(DocumentId documentId, int runNo);
+
+  /**
+   * Runs the stage and returns the state to move the document to, one of {@code stage().outputs()}.
+   * Stages with a single output only implement {@link #run}; a stage that branches (Validate,
+   * ADR-20) overrides this.
+   *
+   * @throws StageFailedException for an expected failure; the document becomes {@code FAILED}
+   */
+  default DocumentState advance(DocumentId documentId, int runNo) {
+    run(Objects.requireNonNull(documentId, "documentId"), runNo);
+    return stage().output();
+  }
 }

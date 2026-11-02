@@ -336,8 +336,8 @@ jobs:
         run: docker compose -f compose.yaml -f compose.ci.yaml up -d --wait --wait-timeout 180
       - name: Run smoke checks
         env:
-          # Accepted end states narrow as the pipeline grows; plan M4.7 sets AUTO_APPROVED,NEEDS_REVIEW.
-          SMOKE_EXPECT_STATUSES: TEXT_READY,PII_CLEAN,EXTRACTED,VALIDATED,AUTO_APPROVED,NEEDS_REVIEW
+          # The smoke document must reach a VAL-8 decision (plan M4.7); the LLM stub answers it.
+          SMOKE_EXPECT_STATUSES: AUTO_APPROVED,NEEDS_REVIEW
         run: scripts/ci/smoke-test.sh http://127.0.0.1:8080
       - name: Collect logs
         if: always()

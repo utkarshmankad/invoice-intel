@@ -16,6 +16,8 @@ dependencies {
     implementation(project(":pii"))
     // The Extract stage handler calls the LLM gateway (EXT-1..5, architecture.md §5.2, §6.5).
     implementation(project(":extract"))
+    // The Validate stage handler runs the rules and the VAL-8 decision (architecture.md §5.2, §6.6).
+    implementation(project(":validate"))
     // ExtractStageConfiguration is on only when an extraction model is configured.
     implementation(libs.spring.boot.autoconfigure)
     implementation(libs.slf4j.api)
