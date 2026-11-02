@@ -12,6 +12,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.slf4j.Logger;
@@ -21,11 +22,11 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Drives documents through the stage chain of architecture.md §5.1. Each stage runs as a JobRunr
- * job ({@link StageJob}); a run is recorded in {@code stage_run}, and a successful run advances the
- * document in the same transaction as the stage's outputs, then enqueues the next stage if it has a
- * handler. Stage failures mark the document {@code FAILED}; they are not retried by JobRunr, the
- * owner reprocesses instead (NFR-5).
+ * Drives documents through the stage chain of architecture.md §5.1. A JobRunr job ({@link
+ * StageJob}) starts the chain at a stage; each run is recorded in {@code stage_run}, and a
+ * successful run advances the document in the same transaction as the stage's outputs, then the
+ * same job runs the next stage if it has a handler. Stage failures mark the document {@code
+ * FAILED}; they are not retried by JobRunr, the owner reprocesses instead (NFR-5).
  *
  * <p>After each run it reports the run's duration and end status, and the document's decision when
  * the run settled one, to {@link InvoiceMetrics} (architecture.md §12). Both are reported only once
@@ -115,26 +116,40 @@ public final class PipelineService {
     return found;
   }
 
-  /** Runs one stage for one document; called by {@link StageJobHandler}. */
-  void runStage(DocumentId id, Stage stage) {
-    StageHandler handler = handlers.get(stage);
-    if (handler == null) {
-      throw new IllegalStateException("no handler for stage " + stage);
+  /**
+   * Runs {@code first} for one document, then each following stage that has a handler, in this same
+   * job, until a stage fails, is skipped or superseded, or the chain ends; called by {@link
+   * StageJobHandler}. Running the next stage here instead of enqueueing it saves a JobRunr pickup
+   * per hand-off, which counts toward the time to decision (NFR-3, plan M4.12).
+   */
+  void runStage(DocumentId id, Stage first) {
+    if (!handlers.containsKey(first)) {
+      throw new IllegalStateException("no handler for stage " + first);
     }
+    Optional<Stage> stage = Optional.of(first);
+    while (stage.isPresent()) {
+      stage = runOne(id, stage.get());
+    }
+  }
+
+  /** Runs one stage; returns the next stage to run, empty when the chain stops here. */
+  private Optional<Stage> runOne(DocumentId id, Stage stage) {
+    StageHandler handler = handlers.get(stage);
     OptionalInt started = tx.execute(_ -> startRun(id, stage));
     try (var _ = LogContext.forStage(id.value(), stage.name())) {
       if (started == null || started.isEmpty()) {
         log.info("stage skipped: document not in its input state or stage already running");
-        return;
+        return Optional.empty();
       }
     }
     int runNo = started.getAsInt();
     try (var _ = LogContext.forStageRun(id.value(), stage.name(), runNo)) {
       if (succeed(id, stage, handler, runNo)) {
         log.info("stage succeeded");
-        stage.next().filter(handlers::containsKey).ifPresent(next -> submit(id, next));
+        return stage.next().filter(handlers::containsKey);
       }
     }
+    return Optional.empty();
   }
 
   private OptionalInt startRun(DocumentId id, Stage stage) {
