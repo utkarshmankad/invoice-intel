@@ -80,14 +80,19 @@ public final class PipelineSimulation extends Simulation {
                   .exec(
                       http("poll status")
                           .get("/api/documents/#{id}")
-                          .check(status().is(200), jsonPath("$.status").saveAs("status"))))
+                          .check(
+                              status().is(200),
+                              jsonPath("$.status").saveAs("status"),
+                              // Stage and code only (PII-8): names a failure in the console.
+                              jsonPath("$.failure.stage").optional().saveAs("failedStage"),
+                              jsonPath("$.failure.code").optional().saveAs("failureCode"))))
           .exec(PipelineSimulation::recordElapsed)
           .exec(
               http("decision")
                   .get("/api/documents/#{id}")
                   .check(
                       status().is(200),
-                      jsonPath("$.status").validate("decided", (s, session) -> decided(s))))
+                      jsonPath("$.status").validate("decided", PipelineSimulation::decided)))
           .exec(
               http("time to decision")
                   .get("/api/documents/#{id}")
@@ -103,9 +108,11 @@ public final class PipelineSimulation extends Simulation {
     return session.set("elapsedMs", elapsed);
   }
 
-  private static String decided(String status) {
+  /** Fails a document that isn't decided; the message leads with the failed stage and code. */
+  private static String decided(String status, Session session) {
     if (!DECIDED.contains(status)) {
-      throw new IllegalStateException("status " + status + ", want one of " + DECIDED);
+      throw new IllegalStateException(
+          status + " " + session.getString("failedStage") + " " + session.getString("failureCode"));
     }
     return status;
   }
