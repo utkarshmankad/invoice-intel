@@ -86,8 +86,29 @@ class SecurityIT {
     assertThat(login.statusCode()).isEqualTo(302);
     assertThat(login.headers().firstValue("Location"))
         .hasValueSatisfying(location -> assertThat(location).doesNotContain("error"));
-    // Logged in, but only health is exposed over HTTP.
+    // Logged in, but only health and metrics are exposed over HTTP.
     assertThat(send(client, get("/actuator/env")).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void actuator_anonymousMetrics_redirectsToLogin() throws Exception {
+    assertThat(send(newClient(), get("/actuator/metrics")).statusCode()).isEqualTo(302);
+    assertThat(send(newClient(), get("/actuator/metrics/invoice.pii.leak")).statusCode())
+        .isEqualTo(302);
+  }
+
+  @Test
+  void formLogin_metrics_showsSection12Metrics() throws Exception {
+    var client = newClient();
+    send(client, loginPost(csrfToken(client), ADMIN_PASSWORD));
+
+    // NFR-6, architecture.md §12: the leak alert metric is registered at start-up.
+    var names = send(client, get("/actuator/metrics"));
+    assertThat(names.statusCode()).isEqualTo(200);
+    assertThat(names.body()).contains("\"invoice.pii.leak\"");
+    var leak = send(client, get("/actuator/metrics/invoice.pii.leak"));
+    assertThat(leak.statusCode()).isEqualTo(200);
+    assertThat(leak.body()).contains("\"name\":\"invoice.pii.leak\"", "\"COUNT\"");
   }
 
   @Test

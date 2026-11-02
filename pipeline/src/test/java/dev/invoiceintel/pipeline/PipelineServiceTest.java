@@ -1,12 +1,16 @@
 package dev.invoiceintel.pipeline;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.metrics.InvoiceMetrics;
 import java.util.List;
 import org.jobrunr.scheduling.JobRequestScheduler;
 import org.jobrunr.storage.InMemoryStorageProvider;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -45,11 +49,26 @@ class PipelineServiceTest {
         .isInstanceOf(IllegalStateException.class);
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "EXTRACT, PII_LEAK, true",
+    "VALIDATE, EXTRACTION_MISSING, true",
+    "EXTRACT, UNEXPECTED_ERROR, false",
+    "VALIDATE, UNEXPECTED_ERROR, false",
+    "PII, PII_LEAK, false",
+    "EXTRACT, EXTRACTION_MISSING, false"
+  })
+  void isFailedDecision_onlyTheSection66Failures_countAsFailedDecision(
+      Stage stage, String code, boolean expected) {
+    assertThat(PipelineService.isFailedDecision(stage, code)).isEqualTo(expected);
+  }
+
   private PipelineService service(List<StageHandler> handlers) {
     return new PipelineService(
         JdbcClient.create(dataSource),
         new DataSourceTransactionManager(dataSource),
         new JobRequestScheduler(new InMemoryStorageProvider()),
-        handlers);
+        handlers,
+        InvoiceMetrics.NONE);
   }
 }

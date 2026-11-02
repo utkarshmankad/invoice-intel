@@ -102,12 +102,13 @@ logging:
     json:
       customizer: dev.invoiceintel.app.logging.PiiMaskingJsonMembersCustomizer
 
-# Only health is exposed over HTTP; details stay hidden (PII-8, NFR-2).
+# Health is public with details hidden (PII-8, NFR-2). Metrics (architecture.md §12, NFR-6) need
+# the admin login like every other page; their tags carry codes and names only, never values.
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics
   endpoint:
     health:
       show-details: never

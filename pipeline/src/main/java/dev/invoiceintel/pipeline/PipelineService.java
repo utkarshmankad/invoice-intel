@@ -2,7 +2,11 @@ package dev.invoiceintel.pipeline;
 
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.common.logging.LogContext;
+import dev.invoiceintel.common.metrics.InvoiceMetrics;
+import dev.invoiceintel.pii.LeakChecker;
 import dev.invoiceintel.pipeline.internal.StageRunRepository;
+import dev.invoiceintel.validate.DecisionOutcome;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
@@ -22,6 +26,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * document in the same transaction as the stage's outputs, then enqueues the next stage if it has a
  * handler. Stage failures mark the document {@code FAILED}; they are not retried by JobRunr, the
  * owner reprocesses instead (NFR-5).
+ *
+ * <p>After each run it reports the run's duration and end status, and the document's decision when
+ * the run settled one, to {@link InvoiceMetrics} (architecture.md §12). Both are reported only once
+ * the run's transaction has ended, so rolled-back work is never counted as succeeded.
  */
 public final class PipelineService {
 
@@ -30,19 +38,28 @@ public final class PipelineService {
 
   private static final Logger log = LoggerFactory.getLogger(PipelineService.class);
 
+  /** Run end statuses, as in {@code stage_run.status}; the {@code outcome} tag of §12. */
+  static final String SUCCEEDED = "SUCCEEDED";
+
+  static final String FAILED = "FAILED";
+  static final String SUPERSEDED = "SUPERSEDED";
+
   private final StageRunRepository runs;
   private final TransactionTemplate tx;
   private final JobRequestScheduler jobs;
   private final Map<Stage, StageHandler> handlers;
+  private final InvoiceMetrics metrics;
 
   public PipelineService(
       JdbcClient jdbc,
       PlatformTransactionManager transactionManager,
       JobRequestScheduler jobs,
-      List<StageHandler> handlers) {
+      List<StageHandler> handlers,
+      InvoiceMetrics metrics) {
     this.runs = new StageRunRepository(jdbc);
     this.tx = new TransactionTemplate(Objects.requireNonNull(transactionManager, "tx"));
     this.jobs = Objects.requireNonNull(jobs, "jobs");
+    this.metrics = Objects.requireNonNull(metrics, "metrics");
     var byStage = new EnumMap<Stage, StageHandler>(Stage.class);
     for (StageHandler handler : handlers) {
       if (byStage.put(handler.stage(), handler) != null) {
@@ -130,8 +147,9 @@ public final class PipelineService {
 
   /** Runs the handler; returns true if the document advanced. */
   private boolean succeed(DocumentId id, Stage stage, StageHandler handler, int runNo) {
+    long started = System.nanoTime();
     try {
-      return Boolean.TRUE.equals(
+      DocumentState advanced =
           tx.execute(
               status -> {
                 DocumentState output = handler.advance(id, runNo);
@@ -143,30 +161,64 @@ public final class PipelineService {
                   // A reprocess superseded this run while it ran; drop its outputs.
                   status.setRollbackOnly();
                   log.info("stage run superseded");
-                  return false;
+                  return null;
                 }
                 runs.setState(id, output);
-                return true;
-              }));
+                return output;
+              });
+      ended(stage, advanced == null ? SUPERSEDED : SUCCEEDED, started);
+      if (advanced != null && stage == Stage.VALIDATE) {
+        // The Validate stage's output is the VAL-8 decision (ADR-20).
+        metrics.decided(advanced.name());
+      }
+      return advanced != null;
     } catch (StageFailedException e) {
-      fail(id, stage, runNo, e.code());
+      failed(id, stage, runNo, e.code(), started);
     } catch (RuntimeException e) {
       // Only the type: messages of library exceptions may quote document content (PII-8).
       log.atWarn().addKeyValue("exception", e.getClass().getName()).log("stage error");
-      fail(id, stage, runNo, UNEXPECTED_ERROR);
+      failed(id, stage, runNo, UNEXPECTED_ERROR, started);
     }
     return false;
   }
 
-  private void fail(DocumentId id, Stage stage, int runNo, String code) {
-    tx.executeWithoutResult(
-        _ -> {
-          runs.lockDocument(id);
-          if (runs.endRun(id, stage, runNo, code)) {
-            runs.setFailed(id, stage, code);
-            log.atWarn().addKeyValue("failureCode", code).log("stage failed");
-          }
-        });
+  private void failed(DocumentId id, Stage stage, int runNo, String code, long started) {
+    if (!fail(id, stage, runNo, code)) {
+      ended(stage, SUPERSEDED, started);
+      return;
+    }
+    ended(stage, FAILED, started);
+    if (isFailedDecision(stage, code)) {
+      metrics.decided(DecisionOutcome.FAILED.name());
+    }
+  }
+
+  /**
+   * The failures that are the {@code FAILED} decision of architecture.md §6.6: a PII leak in the
+   * model response and a missing extraction. Other failures are stage errors, not decisions.
+   */
+  static boolean isFailedDecision(Stage stage, String code) {
+    return (stage == Stage.EXTRACT && LeakChecker.FAILURE_CODE.equals(code))
+        || (stage == Stage.VALIDATE && ValidateStageHandler.EXTRACTION_MISSING.equals(code));
+  }
+
+  private void ended(Stage stage, String outcome, long started) {
+    metrics.stageEnded(stage.name(), outcome, Duration.ofNanos(System.nanoTime() - started));
+  }
+
+  /** Marks the run and document failed; returns false if a reprocess superseded the run. */
+  private boolean fail(DocumentId id, Stage stage, int runNo, String code) {
+    return Boolean.TRUE.equals(
+        tx.execute(
+            _ -> {
+              runs.lockDocument(id);
+              if (!runs.endRun(id, stage, runNo, code)) {
+                return false;
+              }
+              runs.setFailed(id, stage, code);
+              log.atWarn().addKeyValue("failureCode", code).log("stage failed");
+              return true;
+            }));
   }
 
   private void submit(DocumentId id, Stage stage) {

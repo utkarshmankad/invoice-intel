@@ -18,6 +18,9 @@ import dev.invoiceintel.ingest.IngestService;
 import dev.invoiceintel.pipeline.PipelineService;
 import dev.invoiceintel.pipeline.Stage;
 import dev.invoiceintel.pipeline.ValidateStageHandler;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -68,6 +71,7 @@ class ValidateStageIT {
   @Autowired IngestService ingest;
   @Autowired PipelineService pipeline;
   @Autowired JdbcClient jdbc;
+  @Autowired MeterRegistry meters;
 
   @DynamicPropertySource
   static void modelServer(DynamicPropertyRegistry registry) {
@@ -91,6 +95,10 @@ class ValidateStageIT {
   void consistentConfidentExtraction_endsAutoApproved() throws IOException {
     SyntheticInvoice invoice = SyntheticInvoiceGenerator.generate(InvoiceType.GST_TAX_INVOICE, 91);
     stubModel(approvableExtractionJson());
+    double approved = count("invoice.decision", "outcome", "AUTO_APPROVED");
+    double tokens = count("invoice.llm.tokens", "direction", "input");
+    double spans = count("invoice.pii.spans", "type", "PERSON");
+    long validated = stageRuns("VALIDATE", "SUCCEEDED");
 
     DocumentId id = run(invoice);
 
@@ -104,6 +112,18 @@ class ValidateStageIT {
         .doesNotContainValue("FAIL");
     Map<String, Object> decision = decision(id);
     assertThat(decision).containsEntry("outcome", "AUTO_APPROVED").containsEntry("reasons", 0);
+    // architecture.md §12 (NFR-6); metrics are reported just after the commit.
+    await()
+        .atMost(TIMEOUT)
+        .untilAsserted(
+            () -> {
+              assertThat(count("invoice.decision", "outcome", "AUTO_APPROVED"))
+                  .isGreaterThanOrEqualTo(approved + 1);
+              assertThat(stageRuns("VALIDATE", "SUCCEEDED")).isGreaterThan(validated);
+              assertThat(count("invoice.llm.tokens", "direction", "input"))
+                  .isGreaterThanOrEqualTo(tokens + 1000);
+              assertThat(count("invoice.pii.spans", "type", "PERSON")).isGreaterThan(spans);
+            });
   }
 
   @Test
@@ -144,6 +164,8 @@ class ValidateStageIT {
     DocumentId id = run(invoice);
     awaitStatus(id, "NEEDS_REVIEW");
     jdbc.sql("DELETE FROM extraction WHERE document_id = ?").param(id.value()).update();
+    double failedDecisions = count("invoice.decision", "outcome", "FAILED");
+    long failedRuns = stageRuns("VALIDATE", "FAILED");
 
     pipeline.reprocess(id, Stage.VALIDATE);
 
@@ -154,6 +176,32 @@ class ValidateStageIT {
                 .query(String.class)
                 .single())
         .isEqualTo("VALIDATE " + ValidateStageHandler.EXTRACTION_MISSING);
+    // A missing extraction is the FAILED decision of §6.6.
+    await()
+        .atMost(TIMEOUT)
+        .untilAsserted(
+            () -> {
+              assertThat(count("invoice.decision", "outcome", "FAILED"))
+                  .isGreaterThanOrEqualTo(failedDecisions + 1);
+              assertThat(stageRuns("VALIDATE", "FAILED")).isGreaterThan(failedRuns);
+            });
+  }
+
+  /** Sum of the counters named {@code name} with the given tag, 0 before the first event. */
+  private double count(String name, String tag, String value) {
+    return meters.find(name).tag(tag, value).counters().stream().mapToDouble(Counter::count).sum();
+  }
+
+  /** Runs recorded by the {@code invoice.stage.duration} timer for one stage and outcome. */
+  private long stageRuns(String stage, String outcome) {
+    return meters
+        .find("invoice.stage.duration")
+        .tag("stage", stage)
+        .tag("outcome", outcome)
+        .timers()
+        .stream()
+        .mapToLong(Timer::count)
+        .sum();
   }
 
   private static String extractionJson() throws IOException {

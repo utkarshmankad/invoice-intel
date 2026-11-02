@@ -1,6 +1,7 @@
 package dev.invoiceintel.pipeline;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.metrics.InvoiceMetrics;
 import dev.invoiceintel.pii.DocumentContext;
 import dev.invoiceintel.pii.ImageRedactor;
 import dev.invoiceintel.pii.PiiDetectors;
@@ -29,6 +30,8 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * The PII stage, TEXT_READY → PII_CLEAN (PII-1..5, architecture.md §5.2, §6.3): detects and merges
@@ -75,6 +78,7 @@ public final class PiiStageHandler implements StageHandler {
   private final RedactedPdf redactedPdf;
   private final RedactionStore store;
   private final RedactionMode mode;
+  private final InvoiceMetrics metrics;
   private volatile ImagePreprocessor preprocessor;
 
   public PiiStageHandler(
@@ -84,7 +88,9 @@ public final class PiiStageHandler implements StageHandler {
       TokenGenerator tokens,
       PiiVault vault,
       RedactionMode mode,
-      Settings settings) {
+      Settings settings,
+      InvoiceMetrics metrics) {
+    this.metrics = Objects.requireNonNull(metrics, "metrics");
     this.blobStore = Objects.requireNonNull(blobStore, "blobStore");
     this.documents = new PiiStageRepository(jdbc);
     this.layers = new TextLayerStore(jdbc);
@@ -118,9 +124,29 @@ public final class PiiStageHandler implements StageHandler {
           .addKeyValue("vaultEntries", redaction.vaultEntries().size())
           .addKeyValue("mode", mode)
           .log("redacted content stored");
+      countSpans(redaction.spans());
     } catch (IllegalArgumentException e) {
       throw new StageFailedException(REDACTION_FAILED);
     }
+  }
+
+  /**
+   * Counts the stored spans by type and detector (architecture.md §12) once the run's transaction
+   * commits, so a failed or superseded run, whose spans roll back, counts nothing.
+   */
+  private void countSpans(List<PiiSpan> spans) {
+    Runnable count = () -> spans.forEach(s -> metrics.piiSpan(s.type().name(), s.detector()));
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      count.run();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            count.run();
+          }
+        });
   }
 
   /** The image each page's word boxes were measured on, by page number. */
