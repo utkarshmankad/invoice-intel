@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "sha256": "f1d081e43a5f16b64fb28a789949a92830ee7cc7bd00a7850a07317b282efc18",
+  "synthetic": true,
+  "notes": "Synthetic tax invoice with a shipping line; all names and numbers are made up.",
+  "fields": {
+    "documentClass": "TAX_INVOICE",
+    "invoiceNumber": "SYN-INV-0001",
+    "invoiceDate": "2024-03-15",
+    "orderNumber": "000-0000000-0000001",
+    "orderDate": "2024-03-14",
+    "sellerName": "Example Retail Private Limited",
+    "sellerGstin": "29AAACE0000A1Z5",
+    "sellerPan": null,
+    "sellerAddress": "Plot 4, Industrial Area, Bengaluru, Karnataka",
+    "placeOfSupply": "Maharashtra",
+    "placeOfDelivery": "Maharashtra",
+    "buyerState": "Maharashtra",
+    "reverseCharge": false,
+    "currency": "INR",
+    "subtotal": "1040.00",
+    "totalTax": "187.20",
+    "grandTotal": "1227.20",
+    "amountInWords": "One Thousand Two Hundred Twenty-seven and Twenty Paise only",
+    "originalInvoiceRef": null,
+    "lineItems": [
+      {
+        "lineNo": 1,
+        "chargeType": "PRODUCT",
+        "description": "Steel water bottle 1 L",
+        "hsnSac": "7323",
+        "unitPrice": "500.00",
+        "quantity": "2",
+        "discount": null,
+        "netAmount": "1000.00",
+        "taxLines": [{ "type": "IGST", "rate": "18", "amount": "180.00" }],
+        "lineTotal": "1180.00"
+      },
+      {
+        "lineNo": 2,
+        "chargeType": "SHIPPING",
+        "description": "Shipping Charges",
+        "hsnSac": "9965",
+        "unitPrice": "40.00",
+        "quantity": "1",
+        "discount": null,
+        "netAmount": "40.00",
+        "taxLines": [{ "type": "IGST", "rate": "18", "amount": "7.20" }],
+        "lineTotal": "47.20"
+      }
+    ]
+  },
+  "piiSpans": [
+    { "type": "PERSON", "page": 1, "text": "Asha Synthetic" },
+    { "type": "ADDRESS", "page": 1, "text": "12 Example Lane, Andheri East, Mumbai" },
+    { "type": "PIN_CODE", "page": 1, "text": "400000" },
+    { "type": "ORDER_NUMBER", "page": 1, "text": "000-0000000-0000001" },
+    { "type": "INVOICE_NUMBER", "page": 1, "text": "SYN-INV-0001" }
+  ]
+}
