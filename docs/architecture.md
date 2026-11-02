@@ -127,7 +127,8 @@ RECEIVED ─► TEXT_READY ─► PII_CLEAN ─► EXTRACTED ─┬─► AUTO_A
     └────────────┴─────────────┴────────────┴─────┴─► FAILED         ┘
 ```
 
-- Each stage is one JobRunr job. The Validate job (EXTRACTED →) takes the decision branch
+- Each stage is one `stage_run`; a JobRunr job starts the chain at a stage and runs each
+  following stage in the same job (ADR-23). The Validate stage (EXTRACTED →) takes the decision branch
   itself: it stores the rule results and the VAL-8 decision and moves the document straight to
   `AUTO_APPROVED` or `NEEDS_REVIEW` (ADR-20). `VALIDATED` stays in the status enum and the
   `document.status` constraint but is never a resting state. A job reads its inputs from Postgres/storage, writes its
@@ -161,7 +162,8 @@ Implementation (M1.4), in `pipeline`:
   (`FOR NO KEY UPDATE`, so stage outputs' foreign keys don't wait on it): (1) if the document is
   in the stage's input state and no run of the stage is `RUNNING`, insert the next `stage_run`
   as `RUNNING`, otherwise skip; (2) call the handler, then mark the run `SUCCEEDED` and move the
-  document to the output state, and enqueue the next stage after commit; (3) on an exception,
+  document to the output state, and after commit run the next stage (if it has a handler) the
+  same way in the same job (ADR-23, M4.12); (3) on an exception,
   mark the run `FAILED` and the document `FAILED` with `failed_stage` and `failure_code`
   (`StageFailedException.code()`, or `UNEXPECTED_ERROR`; only the exception type is logged).
   Stage failures aren't retried by JobRunr; JobRunr's retries only cover exceptions outside the
@@ -189,7 +191,9 @@ Implementation (M1.4), in `pipeline`:
 | Reconcile | reconcile | extraction + order history | `reconciliation_match` | REC-1..4 |
 
 Concurrency: one JobRunr worker pool; LLM-bound jobs run on virtual threads with a
-per-provider rate limiter (semaphore sized from config).
+per-provider rate limiter (semaphore sized from config). The server polls for enqueued jobs
+every 5 s (`jobrunr.background-job-server.poll-interval-in-seconds`, JobRunr's minimum for SQL
+storage; M4.12), which bounds the wait before a new document's Text stage starts.
 
 ---
 
@@ -1286,6 +1290,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-19 | Extraction schema records (`InvoiceExtraction`, `LineItem`, `TaxLine`, `Field`, `Evidence`, `BoundingBox`, `FieldSource`, `TaxType`, `ChargeType`, `Currency`) live in `common` (`dev.invoiceintel.common.extraction`); `common` gains `jakarta.validation-api` (annotations only, no validator) (owner decision 2026-10-30, M4.1) | Allow `validate → extract` in §4.1; a separate copy of the shape in `validate` | `validate` (§6.6) and `eval` read the extraction, and §4.1 keeps `validate` off `extract` (which brings Spring AI). One definition of the JSONB shape (`extraction.result`) avoids drift. |
 | ADR-20 | One Validate job decides (owner decision 2026-11-02, M4.7): `VALIDATE` runs VAL-1..VAL-7, stores `validation_result` rows and the VAL-8 `decision` in one transaction and moves the document from `EXTRACTED` straight to `AUTO_APPROVED` or `NEEDS_REVIEW` (the handler picks among `Stage.outputs()`); a missing extraction fails the stage with `EXTRACTION_MISSING`; `VALIDATED` stays in the enum but is no longer a resting state | Two jobs as the old §5.1 diagram drew: `VALIDATE` (→ `VALIDATED`) and a new `DECIDE` stage (→ decision), with a migration widening the `stage_run`/`failed_stage` constraints | Rule results and the decision come from the same extraction and are useless apart; one transaction keeps them consistent, needs no migration and no extra reprocess entry point. |
 | ADR-21 | Document detail read model in `pipeline` (M4.8): `DocumentDetailsReader` joins the `document` row, the current extraction and the current decision and rule results into `DocumentDetails`, mapping `validate` types to its own records, and `app` maps that to the response | `app` reads `extract`/`validate` stores directly | `app` may not depend on `extract` (§4.1), and only `pipeline` knows which stage run is current, so superseded outputs can't leak into the API. |
+| ADR-23 | One JobRunr job runs a document's chain: `StageJob` starts at a stage and `PipelineService` runs each following stage in the same job; `start` and `reprocess` still enqueue. Stage runs, transactions, failures and supersede checks are unchanged (owner decision 2026-11-02, M4.12) | One job per stage (enqueue the next stage after commit), as before | Every enqueue waited for a JobRunr pickup (the first one up to the 15 s poll interval, later hand-offs about 3 s), which put the CI time to decision over the 20 s of NFR-3 (p95 up to 25 s). A failed stage already stops the chain and isn't retried by JobRunr, so separate jobs bought nothing. |
 
 ---
 

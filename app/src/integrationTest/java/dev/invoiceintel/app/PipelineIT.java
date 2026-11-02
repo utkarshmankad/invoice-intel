@@ -76,6 +76,22 @@ class PipelineIT {
   }
 
   @Test
+  void start_runsFollowingStagesInTheSameJob() {
+    DocumentId id = receivedDocument();
+
+    pipeline.start(id);
+
+    awaitStatus(id, "PII_CLEAN");
+    // One JobRunr job for both stages: the next stage isn't enqueued (plan M4.12).
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM jobrunr_jobs WHERE jobAsJson LIKE ?")
+                .param("%" + id.value() + "%")
+                .query(Integer.class)
+                .single())
+        .isEqualTo(1);
+  }
+
+  @Test
   void reprocess_fromText_supersedesEarlierRunsAndRunsAgain() {
     DocumentId id = receivedDocument();
     pipeline.start(id);
@@ -160,7 +176,7 @@ class PipelineIT {
     DocumentId id = receivedDocument();
     jdbc.sql("UPDATE document SET status = 'TEXT_READY' WHERE id = ?").param(id.value()).update();
 
-    // Text expects RECEIVED; Text is skipped and nothing else is enqueued.
+    // Text expects RECEIVED; Text is skipped and the chain stops there.
     pipeline.start(id);
     DocumentId marker = receivedDocument();
     pipeline.start(marker);

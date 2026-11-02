@@ -87,6 +87,10 @@ invoice-intel:
 jobrunr:
   background-job-server:
     enabled: true
+    # How often the server looks for enqueued jobs. Every upload waits for the next poll before
+    # its Text stage starts, so this counts toward the time to decision (NFR-3); 5 s is JobRunr's
+    # smallest allowed value for SQL storage (plan M4.12). Default 15 s.
+    poll-interval-in-seconds: 5
   dashboard:
     enabled: false
   miscellaneous:
