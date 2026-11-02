@@ -990,7 +990,10 @@ Document API (M4.8, ADR-21), in `app`'s `DocumentController`:
 
 Both buckets are private. Locally they are two SeaweedFS buckets, created by the
 `seaweedfs-init` service in `compose.yaml`; names come from `S3_BUCKET_RAW` and
-`S3_BUCKET_REDACTED` (defaults `raw`, `redacted`).
+`S3_BUCKET_REDACTED` (defaults `raw`, `redacted`). Each bucket is a SeaweedFS collection that
+grows 7 volumes on its first write, so the compose server runs with `-volume.max=64` instead of
+the default 8 slots, which `raw` and the default collection used up before `redacted` got any
+(M4.11).
 
 Access goes through `dev.invoiceintel.storage.BlobStore` (`put`, `get` → `Optional<byte[]>`,
 `delete`; deleting a missing object is a no-op) addressed by `BlobKey(bucket, key)`, the same

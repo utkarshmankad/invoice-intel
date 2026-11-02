@@ -29,13 +29,16 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     # The S3 identity file is written at start-up so the keys stay in the environment only.
+    # -volume.max: the default of 8 volume slots runs out as each collection (bucket) grows 7
+    # volumes on its first write; with `raw` and the default collection holding all 8, writes to
+    # `redacted` failed (plan M4.11). Volumes aren't preallocated, so slots cost no disk.
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         printf '{"identities":[{"name":"app","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' \
           "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json
         exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 \
-          -s3 -s3.config=/tmp/s3.json
+          -volume.max=64 -s3 -s3.config=/tmp/s3.json
     ports:
       - "127.0.0.1:9000:8333" # S3 API
     volumes:
