@@ -1,6 +1,7 @@
 package dev.invoiceintel.app.api;
 
 import dev.invoiceintel.ingest.UnsupportedFileTypeException;
+import dev.invoiceintel.pipeline.ReprocessNotAllowedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -27,5 +28,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     problem.setProperty("fileIndex", e.fileIndex());
     problem.setProperty("detectedType", e.detectedType());
     return problem;
+  }
+
+  /** The message names stages and states only (PII-8). */
+  @ExceptionHandler
+  ProblemDetail reprocessNotAllowed(ReprocessNotAllowedException e) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
   }
 }
