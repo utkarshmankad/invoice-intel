@@ -14,7 +14,8 @@ import java.time.Duration;
 
 /**
  * Health and authentication under load (plan M0.15, NFR-3): health is up, anonymous API calls get
- * 401, admin Basic credentials pass security. Pipeline scenarios are added in M4.10.
+ * 401, admin Basic credentials pass security. API and pipeline scenarios are in the other
+ * simulations of this package (M4.10).
  */
 public final class HealthAuthSimulation extends Simulation {
 

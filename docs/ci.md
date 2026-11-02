@@ -134,12 +134,31 @@ WireMock LLM stub (fixed latency 800 ms to imitate a real model). Assertions:
 | Scenario | Load | Assertion |
 |----------|------|-----------|
 | Health + authentication (`HealthAuthSimulation`, from M0.15) | 10 users, 60 s, 1 s pause per iteration | p95 < 500 ms, error rate < 1% |
-| Upload + read API | 10 users, 60 s | p95 < 500 ms, error rate < 1% |
-| End-to-end pipeline (digital PDF fixture) | 20 documents | p95 time to decision < 20 s (NFR-3), 0 failures |
-| Review queue/list endpoints | 10 users, 60 s | p95 < 300 ms |
+| Upload + read API (`UploadReadSimulation`, M4.10) | 10 users, 60 s, 1 s pause per iteration | p95 < 500 ms, error rate < 1% |
+| End-to-end pipeline, digital PDF fixture (`PipelineSimulation`, M4.10) | 20 documents, ramped over 20 s | p95 time to decision < 20 s (NFR-3), 0 failures |
+| Review queue/list endpoints (`ListEndpointsSimulation`, M4.10) | 10 users, 60 s, 1 s pause per iteration | p95 < 300 ms, error rate < 1% |
 
 Thresholds live in `perf/src/gatling/resources/thresholds.conf`, so they're tuned in one
-place. Tightening is free; loosening needs a note in the PR description.
+place. Tightening is free; loosening needs a note in the PR description. `gatlingRun` runs
+every simulation in the module (non-interactive); any failed assertion fails the job.
+
+How the scenarios work (M4.10):
+
+- Uploads use the synthetic smoke invoice (§4) with a random PDF comment appended after
+  `%%EOF`, so each new document has new bytes and isn't deduplicated (ING-2), while its text
+  and the stub's extraction stay the same.
+- **Upload + read:** each virtual user uploads one new document, then loops over re-uploading
+  it (the deduplicated path), the document list and its detail. Only 10 documents enter the
+  pipeline, so pipeline work doesn't skew the API latencies.
+- **End-to-end:** each document is uploaded and its status polled every 500 ms until it is
+  final. Gatling asserts on groups by cumulated response time, which leaves out pauses, so the
+  time to decision (upload start → final status seen, queue wait included, stricter than
+  NFR-3) is checked per document: the `time to decision` request fails above the limit, and
+  "p95 under the limit" is asserted as "at most 5% of those requests failed". `decision`
+  fails for a document that ends `FAILED` or isn't final within 60 s, and must have 0 failures.
+  The console prints p50/p95 of the measured times.
+- **Lists:** all documents, the review queue (`?status=NEEDS_REVIEW`, REV-1) and
+  `?status=AUTO_APPROVED`. The review UI page (M7.2) reads the same query.
 
 **Outside CI:**
 - Memory: the CI stack runs the app with a 2 GB container limit, so an out-of-memory

@@ -378,14 +378,19 @@ jobs:
       - name: Performance summary
         if: always()
         run: scripts/ci/perf-summary.sh perf/build/reports/gatling
-      - name: Stop stack
+      - name: Collect logs
         if: always()
-        run: docker compose -f compose.yaml -f compose.ci.yaml down -v || true
+        run: |
+          mkdir -p build/perf
+          docker compose -f compose.yaml -f compose.ci.yaml logs --no-color > build/perf/compose.log 2>&1 || true
+          docker compose -f compose.yaml -f compose.ci.yaml down -v || true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: performance-report
-          path: perf/build/reports/gatling/
+          path: |
+            perf/build/reports/gatling/
+            build/perf/
           retention-days: 14
 
   ci-gate:
