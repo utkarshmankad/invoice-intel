@@ -865,6 +865,18 @@ Command examples:
 - Metrics (EVAL-2): per-field exact match (normalized), line-item F1 (match on description
   similarity + amount), straight-through rate, false auto-approval rate, PII recall/precision
   (span overlap ≥ 50%), cost per document, p50/p95 latency.
+- PII recall/precision (M5.4, `dev.invoiceintel.eval.metrics.pii`): `SpanLocator` turns each
+  label span into every whole-word occurrence of its text on its page (whitespace collapsed,
+  case ignored, offsets mapped back to `PageText`); `PiiSpanMetric` scores the PII stage's spans
+  against them per page. Overlap is character coverage measured on each span's own length, with
+  the other side's spans taken as a union: an expected occurrence is **found** when detected spans
+  cover ≥ 50% of it (recall), a detected span is **correct** when expected occurrences cover
+  ≥ 50% of it (precision). Types needn't match, because recall and precision measure whether PII
+  is removed and non-PII kept (specs §6.3); typed recall (same-type coverage) is counted beside
+  them. Per-type counts use the expected type for recall and the detected type for precision.
+  A label text not found on its page is counted as **unlocated** and as a missed expected span
+  (recall bias). `PiiScore`/`PiiCounts` hold counts and types only, never span text (PII-8);
+  `PiiSpanType` mirrors `PiiType`, which `eval` can't import (§4.1).
 - Writes `eval-reports/{runId}/report.md`, `fields.csv`, `config.json` (model IDs,
   prompt versions, git SHA) (EVAL-4). Reports contain no PII.
 
