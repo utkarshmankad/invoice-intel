@@ -3,14 +3,15 @@
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :eval:dependencies --write-locks
 com.fasterxml.jackson.core:jackson-annotations:2.21=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
-com.github.spotbugs:spotbugs-annotations:4.10.5=spotbugs
+com.github.spotbugs:spotbugs-annotations:4.10.5=compileClasspath,spotbugs,testCompileClasspath
 com.github.spotbugs:spotbugs:4.10.5=spotbugs
 com.github.stephenc.jcip:jcip-annotations:1.0-1=spotbugs
-com.google.code.findbugs:jsr305:3.0.2=spotbugs
+com.google.code.findbugs:jsr305:3.0.2=compileClasspath,spotbugs,testCompileClasspath
 com.google.code.gson:gson:2.14.0=spotbugs
 com.google.errorprone:error_prone_annotations:2.48.0=spotbugs
 com.h3xstream.findsecbugs:findsecbugs-plugin:1.14.0=spotbugsPlugins
 commons-io:commons-io:2.22.0=spotbugs
+info.picocli:picocli:4.7.7=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jakarta.validation:jakarta.validation-api:3.1.1=compileClasspath,integrationTestCompileClasspath,integrationTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 jaxen:jaxen:2.0.6=spotbugs
 net.bytebuddy:byte-buddy:1.18.15=integrationTestCompileClasspath,integrationTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
