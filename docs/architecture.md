@@ -877,6 +877,20 @@ Command examples:
   A label text not found on its page is counted as **unlocated** and as a missed expected span
   (recall bias). `PiiScore`/`PiiCounts` hold counts and types only, never span text (PII-8);
   `PiiSpanType` mirrors `PiiType`, which `eval` can't import (§4.1).
+- Field metrics (M5.3, `dev.invoiceintel.eval.metrics.fields`): `FieldMetrics.score` takes
+  label/extraction pairs as plain `DocumentValues` (header values as strings, line items as
+  description + `lineTotal`) and is pure. Every header field of spec §5.1 is scored once per
+  document: both null = correct, exactly one null = wrong (§9.2). Normalization by field kind:
+  text fields are trimmed, whitespace collapsed and case ignored; dates compare as ISO
+  `LocalDate`s and amounts by `BigDecimal.compareTo` (scale ignored, no tolerance), each falling
+  back to text when unparseable; `invoiceNumber`, `orderNumber` and `originalInvoiceRef` are
+  tokens, compared exactly after trimming, so the caller tokenizes the label values first (§9.2).
+  Results: per-field and overall correct/total counts and the mismatched fields per document.
+  Line-item F1: a labelled and an extracted item are candidates when their descriptions' word-set
+  Jaccard similarity (letters/digits, case ignored) is ≥ 0.5 and line totals differ by ≤ 0.01;
+  candidates are matched one-to-one greedily, most similar first. Precision, recall and F1 are
+  micro-averaged (TP/FP/FN summed over all documents); with nothing labelled and nothing
+  extracted they are 1.
 - Writes `eval-reports/{runId}/report.md`, `fields.csv`, `config.json` (model IDs,
   prompt versions, git SHA) (EVAL-4). Reports contain no PII.
 
