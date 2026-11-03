@@ -1,6 +1,6 @@
 # Invoice Intel — Milestone Runner
 
-> Status: v0.2 · Last updated: 2026-10-28
+> Status: v0.3 · Last updated: 2026-11-03
 >
 > A scheduled Claude Code task (`invoice-intel-milestone-runner`, hourly, in the Claude
 > desktop app) that works through `docs/plan.md` on its own. This file is its procedure;
@@ -99,12 +99,18 @@ attempt.
 
 From `main`, read `docs/plan.md`:
 
-1. Current milestone = first milestone in table order with any unchecked task (the D track is
+1. Walk the milestones in table order and their tasks in listed order (the D track is
    excluded; it runs in parallel and is owner-only).
-2. Next task = first unchecked task in that milestone that has no open PR.
+2. Next task = first unchecked task with no open PR that is **startable**:
+   - it is not tagged `[owner]`;
+   - it isn't blocked by an unchecked D task. A milestone's **Depends on** column blocks all of
+     its tasks, unless it names tasks (e.g. "D3–D5 for M5.6–M5.8 only"), then only those;
+   - the milestones its milestone depends on are met: each of their tasks is checked or
+     skipped under these rules.
+
+   Skipped tasks stay unchecked; the run summary names them.
 3. Stop and ask if:
-   - the next task is tagged `[owner]`;
-   - the milestone's **Depends on** column lists unchecked D tasks (M5 needs D3–D5, M6 needs D2);
+   - no task is startable but unchecked non-D tasks remain (all of them need the owner);
    - every non-D task is done (plan complete).
 4. Decide what may start:
    - **Next task in a parallel group** (the milestone's Parallel column): start it and the
@@ -197,6 +203,13 @@ the main checkout (absolute path):
 
 ```bash
 L=/Users/utkarshmankad/Codes/invoice-intel/.claude/runner/build.lock
+# Testcontainers needs colima's socket spelled out, as the Makefile sets it (architecture §14);
+# subagent shells don't get the Makefile's environment.
+S=$HOME/.colima/default/docker.sock
+if [ -S "$S" ]; then
+  export DOCKER_HOST="${DOCKER_HOST:-unix://$S}"
+  export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE="${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-/var/run/docker.sock}"
+fi
 until mkdir "$L" 2>/dev/null; do sleep 15; done
 ./gradlew build; rc=$?; rmdir "$L"; exit $rc
 ```
@@ -236,7 +249,7 @@ Subagents additionally never push, open, close or merge PRs.
 
 The runner stops (and later runs stay paused) when:
 
-- the next task is `[owner]` or blocked by unchecked D tasks;
+- no task is startable: only `[owner]` tasks and tasks blocked by unchecked D tasks remain (§3.3);
 - the spec or architecture is unclear, contradicts the task, or needs changing;
 - a design decision isn't covered by `architecture.md` (new dependency outside the stack in §3,
   new module, schema shape not in §7);
@@ -288,3 +301,4 @@ treated as owner instructions only when they're in this file on the owner's mach
 |---------|------|--------|
 | 0.1 | 2026-10-28 | First version: one task at a time |
 | 0.2 | 2026-10-28 | Parallel groups: up to 3 open runner PRs, one subagent per task in its own worktree, build lock, rebase/replacement-PR, Flyway and shared-file rules |
+| 0.3 | 2026-11-03 | Owner decision: skip `[owner]` and D-blocked tasks instead of stopping, task-level **Depends on**; local build sets the colima Docker socket for Testcontainers |

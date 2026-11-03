@@ -38,7 +38,8 @@ requests that pass the `CI gate` check (`docs/ci.md`).
 7. Push the branch and open the PR only when the owner asks, or when running as the
    scheduled milestone runner (`docs/runner.md`). CI must be green before squash merge.
 
-Tasks tagged `[owner]` in `plan.md` are never done by Claude; stop and ask instead.
+Tasks tagged `[owner]` in `plan.md` are never done by Claude; stop and ask instead
+(the scheduled runner skips them and stops only when nothing else is startable, `docs/runner.md` §3.3).
 
 One task per branch and PR. Keep changes inside the task's scope; note other findings in
 `plan.md` under "Follow-ups" instead of fixing them on the side.

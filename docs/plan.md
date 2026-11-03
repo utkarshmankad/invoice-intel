@@ -24,7 +24,7 @@
 | M2 | PII detection, tokens, redaction, PII gate | M1 | {M2.2, M2.3, M2.4, M2.5, M2.8} |
 | M3 | LLM extraction and pipeline wiring | M2 | {M3.5, M3.6, M3.7} |
 | M4 | Validation rules and decisions | M3 | {M4.2, M4.3, M4.4, M4.5} · {M4.8, M4.9} |
-| M5 | Eval harness and first baseline | M4, D3–D5 | {M5.2, M5.3, M5.4} |
+| M5 | Eval harness and first baseline | M4 · D3–D5 for M5.6–M5.8 only | {M5.2, M5.3, M5.4} |
 | M6 | Order-history import and reconciliation | M4, D2 | — |
 | M7 | Review UI | M4 | {M7.2, M7.3} |
 | M8 | Case study, redacted samples, release | M5, M6, M7 | — |
@@ -34,6 +34,12 @@ each on its own branch and PR (`runner.md` §3.3, §4). A group starts once ever
 before it in the milestone is done. Tasks in no group run alone. Groups hold tasks that
 shouldn't touch the same files; `[owner]` tasks and tasks that wire a stage job into the
 pipeline are never in a group. Changing a group needs a PR.
+
+**Depends on** applies to every task of the milestone unless it names tasks. Owner decision
+2026-11-03: D5 (hand labels) blocks only M5.6–M5.8, the runs on the labelled set and the
+tuning from their results; M5.2–M5.5 and M5.9 use synthetic fixtures and go ahead before D5.
+The runner skips `[owner]` tasks and blocked tasks and carries on with the next milestone
+whose dependencies are met (`runner.md` §3.3).
 
 Branches are per task, not per milestone: `<type>/<task-id>-<short-desc>` (e.g.
 `feat/m1.3-upload-endpoint`). Every PR must pass the `CI gate` check before squash merge.
