@@ -867,6 +867,17 @@ Command examples:
   (span overlap ≥ 50%), cost per document, p50/p95 latency.
 - Writes `eval-reports/{runId}/report.md`, `fields.csv`, `config.json` (model IDs,
   prompt versions, git SHA) (EVAL-4). Reports contain no PII.
+- CLI (M5.2): `dev.invoiceintel.eval.Main` → `cli.EvalCli` (picocli). `run --dataset DIR
+  --strategy TEXT|VISION|HYBRID [--model ID] [--out eval-reports] [--run-id ID]` loads the
+  dataset's label files (`run.Dataset`, refuses to run if any fails `LabelValidator`), passes
+  each document to a pluggable `run.DocumentRunner` (created per strategy and model by a
+  `RunnerFactory`) and writes the run folder: `config.json` (run ID, start time, dataset,
+  strategy, model, runner name) and `documents.csv` (`sha256,synthetic,status,latency_ms,error`;
+  status `EXTRACTED|SKIPPED|FAILED`, error is an exception class name only). The run ID
+  defaults to the UTC start time `yyyy-MM-dd-HHmmss`. `compare RUN_A RUN_B` prints a Markdown
+  table of both configs and document counts; metrics join it with M5.3–M5.5. The only runner
+  so far is `StubDocumentRunner` (marks every document `SKIPPED`, no LLM, no stack); the
+  in-process pipeline runner replaces it in `Main`.
 
 ---
 
