@@ -891,8 +891,29 @@ Command examples:
   candidates are matched one-to-one greedily, most similar first. Precision, recall and F1 are
   micro-averaged (TP/FP/FN summed over all documents); with nothing labelled and nothing
   extracted they are 1.
-- Writes `eval-reports/{runId}/report.md`, `fields.csv`, `config.json` (model IDs,
-  prompt versions, git SHA) (EVAL-4). Reports contain no PII.
+- Reports (M5.5, `run.RunDirectory`, `run.RunSummary`, `run.RunReport`): each run folder
+  `eval-reports/{runId}/` holds `config.json` (run ID, start time, dataset, strategy, requested
+  model, runner, git SHA, the model IDs and prompt versions the documents' calls used, the
+  `--usd-inr` rate or null) (EVAL-4), `documents.csv`
+  (`sha256,synthetic,status,decision,correct,mismatched_fields,line_tp,line_fp,line_fn,cost_usd,latency_ms,error`;
+  mismatched fields are label keys joined by `;`), `fields.csv` (`field,correct,total,accuracy`)
+  and `report.md` (settings, document counts, the metrics beside the spec §9 / NFR-3 / NFR-4
+  targets, per-field accuracy). They hold identifiers, field names, counts, costs and timings
+  only, no PII. A `DocumentRunner` returns the extraction, the VAL-8 decision (eval's `Decision`
+  mirrors `DecisionOutcome`) and an `LlmUsage` (cost in USD, model IDs, prompt versions summed
+  over the document's `llm_call` rows), and tokenizes label invoice/order numbers through
+  `labelToken` (identity by default). `EvalRun` scores each extraction with `FieldMetrics`
+  (`DocumentValuesMapper` turns label `fields` and `InvoiceExtraction` into `DocumentValues`).
+  Definitions: a document **ran** when `EXTRACTED` or `FAILED` (skipped ones count nowhere but
+  the total); it is **correct** when every header field and line item matched its label;
+  straight-through rate = auto-approved and correct / ran, false auto-approval rate =
+  auto-approved and not correct / ran (spec §9); cost per document = total USD / ran, and in INR
+  at the `--usd-inr` rate when given (NFR-4; the rate is a run input, not a stored constant);
+  p50/p95 latency = nearest-rank percentiles of the ran documents' runner wall time, which
+  equals pipeline time only when the runner runs stages synchronously (NFR-3 excludes queue
+  wait). PII recall/precision is not in the report yet (needs the Text stage's pages and
+  `pii_span` rows from the pipeline runner). `compare` reads both folders and prints the same
+  metric rows side by side.
 - CLI (M5.2): `dev.invoiceintel.eval.Main` → `cli.EvalCli` (picocli). `run --dataset DIR
   --strategy TEXT|VISION|HYBRID [--model ID] [--out eval-reports] [--run-id ID]` loads the
   dataset's label files (`run.Dataset`, refuses to run if any fails `LabelValidator`), passes
@@ -901,7 +922,7 @@ Command examples:
   strategy, model, runner name) and `documents.csv` (`sha256,synthetic,status,latency_ms,error`;
   status `EXTRACTED|SKIPPED|FAILED`, error is an exception class name only). The run ID
   defaults to the UTC start time `yyyy-MM-dd-HHmmss`. `compare RUN_A RUN_B` prints a Markdown
-  table of both configs and document counts; metrics join it with M5.3–M5.5. The only runner
+  table of both configs, document counts and metrics (M5.5). The only runner
   so far is `StubDocumentRunner` (marks every document `SKIPPED`, no LLM, no stack); the
   in-process pipeline runner replaces it in `Main`.
 

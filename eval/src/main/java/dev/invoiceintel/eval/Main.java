@@ -1,6 +1,7 @@
 package dev.invoiceintel.eval;
 
 import dev.invoiceintel.eval.cli.EvalCli;
+import dev.invoiceintel.eval.cli.GitSha;
 import dev.invoiceintel.eval.run.StubDocumentRunner;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -24,7 +25,12 @@ public final class Main {
     PrintWriter err =
         new PrintWriter(new OutputStreamWriter(System.err, StandardCharsets.UTF_8), true);
     EvalCli cli =
-        new EvalCli((strategy, model) -> new StubDocumentRunner(), Clock.systemUTC(), out, err);
+        new EvalCli(
+            (strategy, model) -> new StubDocumentRunner(),
+            GitSha::current,
+            Clock.systemUTC(),
+            out,
+            err);
     System.exit(cli.execute(args));
   }
 }
