@@ -7,9 +7,11 @@ import dev.invoiceintel.eval.run.DocumentRunner;
 import dev.invoiceintel.eval.run.EvalRun;
 import dev.invoiceintel.eval.run.RunConfig;
 import dev.invoiceintel.eval.run.RunDirectory;
+import dev.invoiceintel.eval.run.RunReport;
 import dev.invoiceintel.eval.run.RunnerFactory;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -21,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
@@ -32,7 +36,8 @@ import picocli.CommandLine.Parameters;
  * The eval CLI (EVAL-1, architecture.md §6.9): {@code run} runs a pipeline configuration over a
  * labelled dataset and writes a run folder; {@code compare} sets two run folders side by side.
  * Output names documents by SHA-256 and label files by name only, never a value
- * (.claude/rules/pii.md). Metrics (EVAL-2) and the Markdown/CSV reports come with M5.3–M5.5.
+ * (.claude/rules/pii.md). {@code run} writes the EVAL-2 metrics as {@code report.md}, {@code
+ * documents.csv} and {@code fields.csv} beside {@code config.json} (M5.5).
  */
 @Command(
     name = "eval",
@@ -54,6 +59,7 @@ public final class EvalCli {
       DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss", Locale.ROOT).withZone(ZoneOffset.UTC);
 
   private final RunnerFactory runners;
+  private final Supplier<String> gitSha;
   private final Clock clock;
   private final PrintWriter out;
   private final PrintWriter err;
@@ -61,8 +67,14 @@ public final class EvalCli {
   @SuppressFBWarnings(
       value = "EI_EXPOSE_REP2",
       justification = "The CLI prints to the caller's writers by design")
-  public EvalCli(RunnerFactory runners, Clock clock, PrintWriter out, PrintWriter err) {
+  public EvalCli(
+      RunnerFactory runners,
+      Supplier<String> gitSha,
+      Clock clock,
+      PrintWriter out,
+      PrintWriter err) {
     this.runners = runners;
+    this.gitSha = gitSha;
     this.clock = clock;
     this.out = out;
     this.err = err;
@@ -111,7 +123,14 @@ public final class EvalCli {
               names = "--run-id",
               paramLabel = "ID",
               description = "Run folder name (default: UTC start time, yyyy-MM-dd-HHmmss).")
-          String runId) {
+          String runId,
+      @Option(
+              names = "--usd-inr",
+              paramLabel = "RATE",
+              description =
+                  "Rupees per US dollar, to report cost per document in INR (NFR-4); recorded in"
+                      + " config.json.")
+          BigDecimal usdInr) {
     String strategyName = strategy.toUpperCase(Locale.ROOT);
     if (!STRATEGIES.contains(strategyName)) {
       err.println("Unknown strategy " + strategy + "; use one of " + STRATEGIES);
@@ -121,6 +140,10 @@ public final class EvalCli {
     String id = runId == null ? RUN_ID_FORMAT.format(startedAt) : runId;
     if (!RUN_ID.matcher(id).matches()) {
       err.println("Run ID must be 1-64 letters, digits, '.', '_' or '-', starting alphanumeric");
+      return CommandLine.ExitCode.USAGE;
+    }
+    if (usdInr != null && usdInr.signum() <= 0) {
+      err.println("--usd-inr must be positive");
       return CommandLine.ExitCode.USAGE;
     }
     if (!Files.isDirectory(dataset)) {
@@ -147,9 +170,20 @@ public final class EvalCli {
     }
 
     DocumentRunner runner = runners.create(strategyName, model);
-    List<DocumentRecord> records = EvalRun.execute(data.documents(), runner);
+    EvalRun.Result result = EvalRun.execute(data.documents(), runner);
+    List<DocumentRecord> records = result.records();
     RunConfig config =
-        new RunConfig(id, startedAt, dataset.toString(), strategyName, model, runner.name());
+        new RunConfig(
+            id,
+            startedAt,
+            dataset.toString(),
+            strategyName,
+            model,
+            runner.name(),
+            gitSha.get(),
+            List.copyOf(new TreeSet<>(result.usage().modelIds())),
+            List.copyOf(new TreeSet<>(result.usage().promptVersions())),
+            usdInr);
     new RunDirectory(config, records).write(runDir);
 
     out.printf(
@@ -186,6 +220,7 @@ public final class EvalCli {
     row("Strategy", ca.strategy(), cb.strategy());
     row("Model", ca.model(), cb.model());
     row("Runner", ca.runner(), cb.runner());
+    row("Git SHA", ca.gitSha(), cb.gitSha());
     row(
         "Documents",
         Integer.toString(runA.documents().size()),
@@ -203,8 +238,9 @@ public final class EvalCli {
     long onlyA = docsA.stream().filter(s -> !docsB.contains(s)).count();
     long onlyB = docsB.stream().filter(s -> !docsA.contains(s)).count();
     row("Only in this run", Long.toString(onlyA), Long.toString(onlyB));
-    out.println();
-    out.println("Metrics (EVAL-2) are not computed yet.");
+    Map<String, String> ma = RunReport.metrics(runA.summary(), ca.usdInr());
+    Map<String, String> mb = RunReport.metrics(runB.summary(), cb.usdInr());
+    ma.forEach((name, value) -> row(name, value, mb.get(name)));
     return CommandLine.ExitCode.OK;
   }
 

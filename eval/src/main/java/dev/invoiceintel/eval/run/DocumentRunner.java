@@ -15,4 +15,15 @@ public interface DocumentRunner {
    * its class name is recorded, since messages may hold document text (PII-8).
    */
   DocumentResult run(LabelledDocument document);
+
+  /**
+   * The token the PII stage gives a printed invoice or order number, so the label's {@code
+   * invoiceNumber}, {@code orderNumber} and {@code originalInvoiceRef} compare with the
+   * pseudonymized extraction (architecture.md §9.2). The pipeline runner tokenizes with the run's
+   * {@code TOKEN_KEYSET}; the default leaves the value as printed, for runners whose extractions
+   * hold printed values.
+   */
+  default String labelToken(String printed) {
+    return printed;
+  }
 }
