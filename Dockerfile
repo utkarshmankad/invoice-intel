@@ -34,8 +34,12 @@ RUN ./gradlew --no-daemon :app:bootJar :pii:stageNerModel -PmodelCacheDir=/works
 # --- Runtime: JRE + Tesseract, non-root ------------------------------------------------
 FROM eclipse-temurin:25-jre-resolute
 
+# apt/libapt-pkg7.0 pinned above the base image's 3.2.0 for CVE-2026-109518 (Trivy HIGH, checked
+# 2026-11-11); drop the pins once the eclipse-temurin image ships the fixed version.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        apt=3.2.1ubuntu0.1 \
+        libapt-pkg7.0=3.2.1ubuntu0.1 \
         tesseract-ocr=5.5.0-1build1 \
         tesseract-ocr-eng=1:4.1.0-2build1 \
     && rm -rf /var/lib/apt/lists/* \
