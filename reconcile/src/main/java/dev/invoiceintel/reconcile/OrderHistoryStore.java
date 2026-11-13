@@ -1,5 +1,8 @@
 package dev.invoiceintel.reconcile;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -48,16 +51,40 @@ public final class OrderHistoryStore {
             FROM order_history_item WHERE import_id = ?
             """)
         .param(importId.value())
-        .query(
-            (rs, row) ->
-                new OrderHistoryItem(
-                    rs.getString("order_token"),
-                    rs.getObject("order_date", java.time.LocalDate.class),
-                    rs.getString("product_name"),
-                    rs.getString("asin"),
-                    rs.getObject("quantity", Integer.class),
-                    rs.getBigDecimal("unit_price"),
-                    rs.getBigDecimal("item_total")))
+        .query(OrderHistoryStore::item)
         .list();
+  }
+
+  /**
+   * The rows the matcher reads (REC-2, architecture.md §6.7): for each order token, the rows of the
+   * latest import that has it, so importing the same export again replaces its rows instead of
+   * doubling them, while orders only an earlier import (or another export layout) has stay. In no
+   * particular order.
+   */
+  public List<OrderHistoryItem> findCurrent() {
+    return jdbc.sql(
+            """
+            SELECT o.order_token, o.order_date, o.product_name, o.asin, o.quantity, o.unit_price,
+                   o.item_total
+            FROM order_history_item o
+            WHERE o.import_id = (
+              SELECT l.import_id FROM order_history_item l
+              WHERE l.order_token = o.order_token
+              ORDER BY l.created_at DESC, l.import_id DESC
+              LIMIT 1)
+            """)
+        .query(OrderHistoryStore::item)
+        .list();
+  }
+
+  private static OrderHistoryItem item(ResultSet rs, int row) throws SQLException {
+    return new OrderHistoryItem(
+        rs.getString("order_token"),
+        rs.getObject("order_date", LocalDate.class),
+        rs.getString("product_name"),
+        rs.getString("asin"),
+        rs.getObject("quantity", Integer.class),
+        rs.getBigDecimal("unit_price"),
+        rs.getBigDecimal("item_total"));
   }
 }
