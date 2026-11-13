@@ -3,6 +3,7 @@ package dev.invoiceintel.pipeline;
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.extract.ExtractionStore;
 import dev.invoiceintel.pipeline.internal.DocumentDetailsRepository;
+import dev.invoiceintel.pipeline.internal.FieldCorrectionRepository;
 import dev.invoiceintel.pipeline.internal.StageRunRepository;
 import dev.invoiceintel.validate.Decision;
 import dev.invoiceintel.validate.DecisionStore;
@@ -28,6 +29,7 @@ public final class DocumentDetailsReader {
   private final ExtractionStore extractions;
   private final DecisionStore decisions;
   private final ValidationResultStore results;
+  private final FieldCorrectionRepository corrections;
   private final TransactionTemplate tx;
 
   public DocumentDetailsReader(JdbcClient jdbc, PlatformTransactionManager transactionManager) {
@@ -36,6 +38,7 @@ public final class DocumentDetailsReader {
     this.extractions = new ExtractionStore(jdbc);
     this.decisions = new DecisionStore(jdbc);
     this.results = new ValidationResultStore(jdbc);
+    this.corrections = new FieldCorrectionRepository(jdbc);
     var template = new TransactionTemplate(Objects.requireNonNull(transactionManager, "tx"));
     // One snapshot, so a stage committing between the reads can't mix two runs' outputs.
     template.setReadOnly(true);
@@ -79,7 +82,8 @@ public final class DocumentDetailsReader {
             document.documentClass(),
             document.failedStage(),
             document.failureCode(),
-            extraction.map(ExtractionStore.Stored::result).orElse(null),
+            // The current values: the latest correction of each field over the extraction (REV-3).
+            extraction.map(e -> corrections.current(e.id(), e.result())).orElse(null),
             decision.orElse(null),
             rules));
   }

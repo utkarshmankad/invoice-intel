@@ -9,19 +9,26 @@ import dev.invoiceintel.pipeline.DocumentDetails;
 import dev.invoiceintel.pipeline.DocumentDetailsReader;
 import dev.invoiceintel.pipeline.DocumentState;
 import dev.invoiceintel.pipeline.PipelineService;
+import dev.invoiceintel.pipeline.ReviewService;
 import dev.invoiceintel.pipeline.Stage;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.Principal;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -32,8 +39,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Document upload (ING-1..4), list (UC1), detail (UC2) and reprocess (NFR-5), architecture.md §6.1,
- * §8, and masked page images (REV-2). No response carries document text, original files, unmasked
- * page images or vault values; the extraction holds pseudonymized values only (specs.md §6).
+ * §8, masked page images (REV-2), and field corrections and approval (REV-3). No response carries
+ * document text, original files, unmasked page images or vault values; the extraction holds
+ * pseudonymized values only (specs.md §6).
  */
 @RestController
 @RequestMapping("/api/documents")
@@ -46,16 +54,19 @@ public class DocumentController {
   private final PipelineService pipeline;
   private final DocumentDetailsReader details;
   private final RedactedPageReader pages;
+  private final ReviewService review;
 
   public DocumentController(
       IngestService ingest,
       PipelineService pipeline,
       DocumentDetailsReader details,
-      RedactedPageReader pages) {
+      RedactedPageReader pages,
+      ReviewService review) {
     this.ingest = ingest;
     this.pipeline = pipeline;
     this.details = details;
     this.pages = pages;
+    this.review = review;
   }
 
   /**
@@ -125,6 +136,38 @@ public class DocumentController {
     return new ReprocessView(id, fromStage);
   }
 
+  /**
+   * Corrects fields of a document in review (REV-3, architecture.md §8, ADR-30): {@code fields}
+   * maps validator field paths to new values. Each changed field is stored with the caller as
+   * {@code corrected_by}, and the document is decided again. Returns the document with its current
+   * values; 404 for an unknown document, 409 if it isn't in {@code NEEDS_REVIEW}, 400 for an
+   * unknown or token field or a value the field can't hold (nothing is stored then).
+   */
+  @PatchMapping("/{id}/fields")
+  public DocumentDetailView correct(
+      @PathVariable UUID id, @RequestBody FieldCorrectionRequest request, Principal principal) {
+    var documentId = new DocumentId(id);
+    if (request == null || request.fields() == null || request.fields().isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "fields is required");
+    }
+    if (review.correct(documentId, request.fields(), principal.getName()) < 0) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+    return get(id);
+  }
+
+  /**
+   * Approves a document in review, moving it to {@code REVIEWED} (REV-3, architecture.md §8): 404
+   * for an unknown document, 409 if it isn't in {@code NEEDS_REVIEW}.
+   */
+  @PostMapping("/{id}/approve")
+  public DocumentDetailView approve(@PathVariable UUID id) {
+    if (!review.approve(new DocumentId(id))) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+    }
+    return get(id);
+  }
+
   private static byte[] bytes(MultipartFile file) {
     try {
       return file.getBytes();
@@ -138,6 +181,15 @@ public class DocumentController {
 
   /** A document's status. */
   public record DocumentView(UUID id, String status) {}
+
+  /** Field corrections: validator field path → new value. */
+  public record FieldCorrectionRequest(Map<String, String> fields) {
+
+    public FieldCorrectionRequest {
+      // Keeps null values (a 400 later) and the request order.
+      fields = fields == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(fields));
+    }
+  }
 
   /** A queued reprocess. */
   public record ReprocessView(UUID id, Stage fromStage) {}

@@ -6,6 +6,7 @@ import dev.invoiceintel.common.extraction.Field;
 import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.common.extraction.LineItem;
 import dev.invoiceintel.common.extraction.TaxLine;
+import dev.invoiceintel.pipeline.ReviewService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,11 @@ final class ReviewDocumentView {
   /** One field of the form; absent optional fields are left out. */
   record FieldRow(
       String path, String htmlId, String value, String confidence, String source, Box box) {
+
+    /** Whether a reviewer may correct the field; PII token fields can't be (ADR-30). */
+    public boolean correctable() {
+      return ReviewService.correctable(path);
+    }
 
     /** Whether the field has an evidence box to highlight. */
     public boolean hasBox() {

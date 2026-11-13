@@ -57,8 +57,9 @@ import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * G6, REV-1, REV-2, architecture.md §6.8: the review UI's layout, login page, navigation behind
- * login, review queue page and document page with its masked page images and evidence overlay.
+ * G6, REV-1, REV-2, REV-3, architecture.md §6.8: the review UI's layout, login page, navigation
+ * behind login, review queue page and document page with its masked page images and evidence
+ * overlay, field corrections and approval.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -349,6 +350,146 @@ class ReviewUiIT {
     var response = send(newClient(), get("/review/" + id.value() + "/pages/1"));
 
     assertThat(response.statusCode()).isEqualTo(302);
+  }
+
+  @Test
+  void documentPage_saveCorrections_storesAuditRowsDecidesAgainAndShowsHumanValue()
+      throws Exception {
+    var id = document("NEEDS_REVIEW", "4");
+    extracted(id, extraction(null));
+    var client = loggedInClient();
+    var page = send(client, get("/review/" + id.value()));
+    // Token fields are shown read-only and are not submitted (ADR-30).
+    assertThat(page.body())
+        .contains("name=\"field:grandTotal\"", "Save corrections", "Approve")
+        .doesNotContain("name=\"field:invoiceNumber\"");
+
+    var saved =
+        send(
+            client,
+            postForm(
+                "/review/" + id.value() + "/fields",
+                "field%3AgrandTotal=1190.00&field%3AsellerName=Example+Seller+Pvt+Ltd&_csrf="
+                    + encode(csrfIn(page.body()))));
+
+    assertThat(saved.statusCode()).isEqualTo(302);
+    assertThat(saved.headers().firstValue("Location"))
+        .hasValueSatisfying(l -> assertThat(l).endsWith("/review/" + id.value()));
+    var rows =
+        jdbc.sql(
+                "SELECT field_path, old_value, new_value, corrected_by FROM field_correction"
+                    + " WHERE document_id = ?")
+            .param(id.value())
+            .query(
+                (rs, n) ->
+                    List.of(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)))
+            .list();
+    assertThat(rows).containsExactly(List.of("grandTotal", "1180.00", "1190.00", ADMIN_USERNAME));
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM decision WHERE document_id = ?")
+                .param(id.value())
+                .query(Integer.class)
+                .single())
+        .isOne();
+    var after = send(client, get("/review/" + id.value())).body();
+    assertThat(after).contains("value=\"1190.00\"", "HUMAN");
+  }
+
+  @Test
+  void documentPage_approve_movesDocumentToReviewedAndBackToQueue() throws Exception {
+    var id = document("NEEDS_REVIEW", "5");
+    extracted(id, extraction(null));
+    var client = loggedInClient();
+    var page = send(client, get("/review/" + id.value())).body();
+
+    var approved =
+        send(
+            client,
+            postForm("/review/" + id.value() + "/approve", "_csrf=" + encode(csrfIn(page))));
+
+    assertThat(approved.statusCode()).isEqualTo(302);
+    assertThat(approved.headers().firstValue("Location"))
+        .hasValueSatisfying(l -> assertThat(l).endsWith("/review"));
+    assertThat(status(id)).isEqualTo("REVIEWED");
+    // A reviewed document's form is read-only.
+    assertThat(send(client, get("/review/" + id.value())).body())
+        .doesNotContain("Save corrections", "name=\"field:grandTotal\"");
+  }
+
+  @Test
+  void documentPage_valueOfWrongType_storesNothingAndShowsError() throws Exception {
+    var id = document("NEEDS_REVIEW", "6");
+    extracted(id, extraction(null));
+    var client = loggedInClient();
+    var page = send(client, get("/review/" + id.value())).body();
+
+    var saved =
+        send(
+            client,
+            postForm(
+                "/review/" + id.value() + "/fields",
+                "field%3AgrandTotal=abc&_csrf=" + encode(csrfIn(page))));
+
+    assertThat(saved.headers().firstValue("Location"))
+        .hasValueSatisfying(l -> assertThat(l).endsWith("?error=invalid"));
+    assertThat(corrections(id)).isZero();
+    assertThat(send(client, get("/review/" + id.value() + "?error=invalid")).body())
+        .contains("Correction not saved");
+  }
+
+  @Test
+  void api_correctThenApprove_returnsCurrentValuesAndRejectsTokenFieldsAndSecondApproval()
+      throws Exception {
+    var id = document("NEEDS_REVIEW", "7");
+    extracted(id, extraction(null));
+    var client = newClient();
+
+    var token = send(client, patch(id, "{\"fields\": {\"invoiceNumber\": \"X-1\"}}"));
+    assertThat(token.statusCode()).isEqualTo(400);
+    assertThat(corrections(id)).isZero();
+
+    var unknown = send(client, patch(id, "{\"fields\": {\"noSuchField\": \"1\"}}"));
+    assertThat(unknown.statusCode()).isEqualTo(400);
+
+    var corrected =
+        send(client, patch(id, "{\"fields\": {\"lineItems[0].taxLines[0].rate\": \"12\"}}"));
+    assertThat(corrected.statusCode()).isEqualTo(200);
+    var rate = JSON.readTree(corrected.body()).at("/extraction/lineItems/0/taxLines/0/rate");
+    assertThat(rate.get("value").decimalValue()).isEqualByComparingTo("12");
+    assertThat(rate.get("source").asString()).isEqualTo("HUMAN");
+
+    var approve =
+        HttpRequest.newBuilder(uri("/api/documents/" + id.value() + "/approve"))
+            .header("Authorization", basicAuth())
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+    assertThat(send(client, approve).statusCode()).isEqualTo(200);
+    assertThat(status(id)).isEqualTo("REVIEWED");
+    assertThat(send(client, approve).statusCode()).isEqualTo(409);
+    assertThat(send(client, patch(id, "{\"fields\": {\"grandTotal\": \"1\"}}")).statusCode())
+        .isEqualTo(409);
+  }
+
+  private HttpRequest patch(DocumentId id, String json) {
+    return HttpRequest.newBuilder(uri("/api/documents/" + id.value() + "/fields"))
+        .header("Authorization", basicAuth())
+        .header("Content-Type", "application/json")
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+        .build();
+  }
+
+  private String status(DocumentId id) {
+    return jdbc.sql("SELECT status FROM document WHERE id = ?")
+        .param(id.value())
+        .query(String.class)
+        .single();
+  }
+
+  private int corrections(DocumentId id) {
+    return jdbc.sql("SELECT count(*) FROM field_correction WHERE document_id = ?")
+        .param(id.value())
+        .query(Integer.class)
+        .single();
   }
 
   private void textLayer(DocumentId id, String pagesJson) {

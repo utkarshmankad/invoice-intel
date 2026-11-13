@@ -920,8 +920,26 @@ It logs the outcome, score and number of reasons only (PII-8).
   (`TextLayerStore.pageSizes`, a JSONB query that reads only `pageNo`, `width` and `height`, never
   the words) and serves only `REDACTED_PAGE` blobs. Those rows exist only once a PII run committed.
   The UI never shows unredacted images, page renders or originals.
-- **Corrections** (REV-3): each edit writes a `field_correction` row (old, new, user, time);
-  the current value is computed as latest correction over extraction.
+- **Corrections** (REV-3, M7.4, ADR-30): each edit writes a `field_correction` row (old, new, user, time);
+  the current value is computed as latest correction over extraction. `extract`'s
+  `FieldCorrections` applies a correction by validator field path: it rewrites the field in the
+  extraction's JSON shape, so the text is parsed as the field's type (amounts as `BigDecimal`,
+  `lineNo` as integer, dates ISO, enums by name, `true`/`false`), and the field gets `source =
+  HUMAN`, confidence 1 and keeps its evidence. Only fields the extraction has can be corrected
+  (blank, over 500 characters or unparsable values are rejected, messages name the path only);
+  the PII token fields `invoiceNumber`, `orderNumber` and `originalInvoiceRef` can't be, since a
+  reviewer sees masked images only and a typed real value would be stored in clear.
+  `pipeline`'s `ReviewService` works only on a document in `NEEDS_REVIEW`, under its row lock:
+  `correct` stores a row per changed field (unchanged ones are skipped) and decides again — the
+  VAL-1..7 rules and the VAL-8 score run on the corrected extraction and replace its
+  `validation_result` rows and the `decision`, while the document stays in `NEEDS_REVIEW`;
+  `approve` moves it to `REVIEWED`. Corrections belong to one extraction, so a new Extract run
+  starts from the model's values again; the Validate stage, `DocumentDetailsReader` (API and UI)
+  and `ReconciliationInvoiceReader` all read the corrected extraction. The document page's form
+  posts changed fields to `POST /review/{id}/fields` (inputs named `field:<path>`; token fields
+  read-only and not submitted; a rejected value stores nothing and shows `?error=invalid`) and
+  `POST /review/{id}/approve` (back to the queue); both are plain form posts with the CSRF field,
+  and the form is read-only once the document left `NEEDS_REVIEW`.
 - **Export** (REV-4): `GET /api/labels/export` writes reviewed documents in the eval label
   format (§9.2).
 
@@ -1102,6 +1120,12 @@ JSON array of document IDs (empty for `ORDER_WITHOUT_INVOICE`); `amount_diff` is
 `NUMERIC(14,2)`, null when it can't be computed. No foreign key to `document`: the next run
 rewrites the rows anyway.
 
+`field_correction` (V12, M7.4, ADR-30): one row per corrected field, never updated or deleted
+(the audit trail); besides §7's columns it has `extraction_id` (the extraction it corrected,
+cascade delete like `validation_result`). `created_at` defaults to `clock_timestamp()` so
+several corrections in one transaction keep their order; the current value is the latest row of
+a path by `created_at`, then `id`. Values are pseudonymized text as the review form shows them.
+
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
 document.
@@ -1149,6 +1173,13 @@ Document API (M4.8, ADR-21), in `app`'s `DocumentController`:
   (`REDACTED_PAGE` only, `Cache-Control: no-store`), 404 if the document or page has none. The
   review UI serves the same bytes at `/review/{id}/pages/{n}` because `/api/**` takes HTTP Basic
   only (ADR-12).
+- `PATCH /api/documents/{id}/fields` (M7.4, ADR-30) takes `{"fields": {"<path>": "<value>"}}`,
+  stores the changed fields as corrections with the Basic user as `corrected_by`, decides again
+  and answers 200 with the document's details (current values); 404 for an unknown document,
+  409 (`ReviewNotAllowedException`) when it isn't in `NEEDS_REVIEW` or has no extraction, 400
+  (`InvalidCorrectionException`, detail names the path only) for an unknown or token field or a
+  value the field can't hold, nothing stored. `POST /api/documents/{id}/approve` moves a
+  `NEEDS_REVIEW` document to `REVIEWED` and answers 200 with its details; 404 / 409 as above.
 - `POST /api/documents/{id}/reprocess?fromStage=` calls `PipelineService.reprocess` and answers
   202 `{id, fromStage}`; 404 for an unknown document, 409 (`ReprocessNotAllowedException`,
   detail names stages and states only) when the document hasn't reached the stage or the stage
@@ -1527,6 +1558,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-27 | Review UI layout (M7.1): HTMX 2.0.11 (latest 2.x, checked 2026-11-13) served from the `org.webjars.npm:htmx.org` webjar with `webjars-locator-lite` (version from the Boot BOM); shared head and nav as plain Thymeleaf fragments (`th:replace`), no layout dialect or Thymeleaf Spring Security extras (the user name comes from a `@ControllerAdvice` model attribute); CSRF token for HTMX requests from `<meta>` tags | HTMX copied into `static/`; a CDN `<script>`; HTMX 4.x; Thymeleaf Layout Dialect | Dependency version, lockfile and Dependabot cover the script like any other library; no third-party host at run time; 4.x was days old; fewer dependencies for one shared header. |
 | ADR-28 | Review queue (M7.2): a server-rendered page at `/review` with sort links (`sort`, `dir` query parameters), read by `pipeline.ReviewQueueReader` in one SQL query over `document` and `decision`, capped at 100 rows | HTMX partial table swaps; client-side sorting; reading through `DocumentDetailsReader` per document; paging | The queue of a single-user tool is short; plain links keep the URL shareable and need no fragment endpoint; one query avoids N+1 reads and keeps the reader to the two tables REV-1 needs. Paging can come later if the queue outgrows 100. |
 | ADR-29 | Document page overlay (M7.3): the SVG `viewBox` is the text layer page (its `width`/`height`, read by a JSONB query that leaves the words in Postgres) and the masked PNG is stretched over it, so evidence boxes are drawn in their stored unit; `pii.RedactedPageReader` is the read-only view of `REDACTED_PAGE` rows and blobs for `app`; images go out twice, under `/review/**` (session) and `/api/documents/{id}/pages/{n}/redacted` (Basic) | Scale boxes to image pixels in Java from the render DPI; store page sizes on `blob_ref`; let the browser call `/api/**` with the session; overlay with absolutely positioned `<div>`s | The DPI is config and OCR pages have no DPI, while the text layer page is the boxes' own coordinate space, so no conversion can drift; no schema change; ADR-12 keeps `/api/**` stateless Basic; SVG scales with the image and keeps boxes aligned at any width. |
+| ADR-30 | Field corrections and approval (M7.4): corrections are applied by validator field path through the extraction's JSON shape (`extract.FieldCorrections`); `field_correction` gains `extraction_id`, so corrections belong to one extraction; a correction re-runs VAL-1..8 on the corrected extraction and replaces its rule results and decision, the document stays `NEEDS_REVIEW` until `approve` moves it to `REVIEWED`; PII token fields (`invoiceNumber`, `orderNumber`, `originalInvoiceRef`) can't be corrected | Per-field setters in Java; corrections keyed by document only; approval writing a new decision outcome (the `decision` constraint allows the VAL-8 outcomes only); re-tokenizing a typed real value in `pii` | The JSON shape is already the single definition of the extraction (ADR-19), so parsing reuses it and new schema fields need no code; a reprocess must not carry stale corrections onto a new extraction; rule results that match the shown values tell the reviewer whether the edit fixed the check; tokens can't be checked against a masked image and a typed value would be stored in clear. |
 
 ---
 

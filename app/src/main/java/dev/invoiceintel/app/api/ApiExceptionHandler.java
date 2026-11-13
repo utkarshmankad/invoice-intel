@@ -2,7 +2,9 @@ package dev.invoiceintel.app.api;
 
 import dev.invoiceintel.app.reconcile.MappingFileException;
 import dev.invoiceintel.ingest.UnsupportedFileTypeException;
+import dev.invoiceintel.pipeline.InvalidCorrectionException;
 import dev.invoiceintel.pipeline.ReprocessNotAllowedException;
+import dev.invoiceintel.pipeline.ReviewNotAllowedException;
 import dev.invoiceintel.reconcile.OrderHistoryImportException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -36,6 +38,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   @ExceptionHandler
   ProblemDetail reprocessNotAllowed(ReprocessNotAllowedException e) {
     return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+  }
+
+  /** The message names states only (PII-8). */
+  @ExceptionHandler
+  ProblemDetail reviewNotAllowed(ReviewNotAllowedException e) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+  }
+
+  /** The message names the field path only, never the value (PII-8). */
+  @ExceptionHandler
+  ProblemDetail invalidCorrection(InvalidCorrectionException e) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
   }
 
   /** The code names what is wrong with the CSV, never its content (PII-8). */

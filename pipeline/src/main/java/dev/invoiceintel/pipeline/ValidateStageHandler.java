@@ -1,7 +1,10 @@
 package dev.invoiceintel.pipeline;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.common.ExtractionId;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.extract.ExtractionStore;
+import dev.invoiceintel.pipeline.internal.FieldCorrectionRepository;
 import dev.invoiceintel.pipeline.internal.StageRunRepository;
 import dev.invoiceintel.pipeline.internal.ValidateStageRepository;
 import dev.invoiceintel.validate.AmountInWordsRule;
@@ -43,6 +46,7 @@ public final class ValidateStageHandler implements StageHandler {
   private final ValidationResultStore results;
   private final DecisionStore decisions;
   private final ConfidenceScorer scorer;
+  private final FieldCorrectionRepository corrections;
   private final RuleEngine engine =
       new RuleEngine(
           List.of(
@@ -65,6 +69,20 @@ public final class ValidateStageHandler implements StageHandler {
     this.results = new ValidationResultStore(jdbc);
     this.decisions = new DecisionStore(jdbc);
     this.scorer = new ConfidenceScorer(approveThreshold);
+    this.corrections = new FieldCorrectionRepository(jdbc);
+  }
+
+  /**
+   * Runs the rules on {@code extraction} and replaces the rule results of {@code extractionId} and
+   * the document's decision; the caller holds the stage or review transaction.
+   */
+  Decision decide(DocumentId documentId, ExtractionId extractionId, InvoiceExtraction extraction) {
+    var context = new ValidationContext(documentId, documents.documentClass(documentId));
+    List<ValidationResult> ruleResults = engine.run(extraction, context);
+    Decision decision = scorer.decide(extraction, ruleResults, context);
+    results.replace(extractionId, ruleResults);
+    decisions.replace(documentId, extractionId, decision);
+    return decision;
   }
 
   @Override
@@ -85,11 +103,11 @@ public final class ValidateStageHandler implements StageHandler {
             .findFirst()
             .flatMap(extractRun -> extractions.find(documentId, extractRun))
             .orElseThrow(() -> new StageFailedException(EXTRACTION_MISSING));
-    var context = new ValidationContext(documentId, documents.documentClass(documentId));
-    List<ValidationResult> ruleResults = engine.run(extraction.result(), context);
-    Decision decision = scorer.decide(extraction.result(), ruleResults, context);
-    results.replace(extraction.id(), ruleResults);
-    decisions.replace(documentId, extraction.id(), decision);
+    // Reviewer corrections of this extraction (REV-3, ADR-30) count, so a Validate-only
+    // reprocess decides on the values the review page shows.
+    Decision decision =
+        decide(
+            documentId, extraction.id(), corrections.current(extraction.id(), extraction.result()));
     // PipelineService has set documentId, stage and runNo in the MDC. Outcome and score only:
     // reason messages name fields and amounts (PII-8).
     log.atInfo()
