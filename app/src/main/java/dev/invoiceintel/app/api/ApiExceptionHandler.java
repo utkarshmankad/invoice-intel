@@ -1,7 +1,9 @@
 package dev.invoiceintel.app.api;
 
+import dev.invoiceintel.app.reconcile.MappingFileException;
 import dev.invoiceintel.ingest.UnsupportedFileTypeException;
 import dev.invoiceintel.pipeline.ReprocessNotAllowedException;
+import dev.invoiceintel.reconcile.OrderHistoryImportException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,5 +36,21 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   @ExceptionHandler
   ProblemDetail reprocessNotAllowed(ReprocessNotAllowedException e) {
     return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+  }
+
+  /** The code names what is wrong with the CSV, never its content (PII-8). */
+  @ExceptionHandler
+  ProblemDetail orderHistoryImport(OrderHistoryImportException e) {
+    var problem =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST, "The order-history file can't be imported: " + e.code() + ".");
+    problem.setProperty("code", e.code().name());
+    return problem;
+  }
+
+  /** A server-side setup problem; the message names the problem only. */
+  @ExceptionHandler
+  ProblemDetail mappingFile(MappingFileException e) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
   }
 }

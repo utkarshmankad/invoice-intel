@@ -81,6 +81,10 @@ invoice-intel:
   # runs to keep false auto-approvals at or below 2% (spec §9).
   validate:
     approve-threshold: ${VALIDATE_APPROVE_THRESHOLD:0.85}
+  # Order-history import (REC-1, architecture.md §6.7): the column mapping, read on every import.
+  # Relative to the working directory (the repository root for bootRun).
+  order-history:
+    mapping-file: ${ORDER_HISTORY_MAPPING_FILE:config/order-history-mapping.yml}
 
 # Stage jobs (architecture.md §5, ADR-04). JobRunr uses the app's datasource and creates its
 # own tables. The dashboard stays off: it would listen on its own port without the app's login.
