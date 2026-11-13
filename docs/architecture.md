@@ -1317,7 +1317,7 @@ Logs are JSON with `documentId`, `stage`, `runNo`. Locally, `/actuator/metrics` 
 | Redaction proof | After redaction, re-extract text and OCR the redacted PDF; assert no known PII string is present | PII-4 test |
 | Integration | Full pipeline with Postgres + SeaweedFS containers and WireMock LLM | Testcontainers, WireMock |
 | Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit, in `app/src/test` (`dev.invoiceintel.app.architecture`); `app` adds every module as a test-only dependency so the rules see all main classes |
-| Eval smoke | Synthetic documents through the eval batch in CI with stubbed LLM, scored by `eval run --results`; checks wiring, not accuracy (M5.9; `EvalBatchIT` covers the batch and the result-file contract, M5.8a) | `app` integration test, eval module |
+| Eval smoke | Five synthetic documents (tax invoices, credit note, pre-GST) with generated label files through the eval batch with stubbed LLM, scored by `eval run --results` (plus one label without a result, SKIPPED), then `eval compare`; asserts the run folder, the report rows and that no labelled value reaches the reports. Checks wiring, not accuracy (M5.9, `EvalSmokeIT`, runs in CI's `integration-tests` job; `EvalBatchIT` covers the batch and the result-file contract, M5.8a) | `app` integration test (`app` has `eval` and picocli as integration-test dependencies), eval module |
 | Smoke | Full container stack; health, auth, upload, dedupe, pipeline status | `scripts/ci/smoke-test.sh` |
 | Performance | API latency and end-to-end time to decision under load, stubbed LLM | Gatling, `perf` module |
 

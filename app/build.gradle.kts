@@ -45,6 +45,10 @@ dependencies {
     "integrationTestImplementation"(libs.awaitility)
     // EvalBatchIT reads the batch's result files with eval's ResultsDocumentRunner (ADR-24).
     "integrationTestImplementation"(project(":eval"))
+    // EvalSmokeIT drives the eval CLI (picocli) on those files (M5.9); EvalCli carries
+    // @SuppressFBWarnings, which -Werror needs on the classpath.
+    "integrationTestImplementation"(libs.picocli)
+    "integrationTestCompileOnly"(libs.spotbugs.annotations)
     // Builds image-only (scanned) PDFs for the Text stage test.
     "integrationTestImplementation"(libs.pdfbox)
 }
