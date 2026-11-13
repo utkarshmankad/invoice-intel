@@ -277,6 +277,36 @@ class EvalCliTest {
   }
 
   @Test
+  void run_resultsWithReconciliation_reportsMatchRate() throws IOException {
+    Path dataset = SyntheticDataset.write(dir.resolve("labels"));
+    Path results = Files.createDirectories(dir.resolve("results"));
+    Files.writeString(
+        results.resolve("reconciliation.json"),
+        "{\"documents\": 4, \"matchedDocuments\": 2, \"orders\": {\"MATCHED\": 2}}");
+
+    int code = runCli(dataset, "--run-id", "rec", "--results", results.toString());
+
+    assertThat(code).isZero();
+    assertThat(RunDirectory.read(dir.resolve("reports/rec")).reconciliation().matchRate())
+        .hasValue(0.5);
+    assertThat(Files.readString(dir.resolve("reports/rec/report.md")))
+        .contains("| Reconciliation match rate | 50.0% |");
+  }
+
+  @Test
+  void run_resultsWithMalformedReconciliation_failsBeforeRunning() throws IOException {
+    Path dataset = SyntheticDataset.write(dir.resolve("labels"));
+    Path results = Files.createDirectories(dir.resolve("results"));
+    Files.writeString(results.resolve("reconciliation.json"), "{}");
+
+    int code = runCli(dataset, "--run-id", "bad", "--results", results.toString());
+
+    assertThat(code).isEqualTo(EvalCli.FAILED);
+    assertThat(err.toString()).contains("reconciliation.json");
+    assertThat(dir.resolve("reports/bad")).doesNotExist();
+  }
+
+  @Test
   void run_resultsNotAFolder_fails() {
     Path dataset = SyntheticDataset.write(dir.resolve("labels"));
 

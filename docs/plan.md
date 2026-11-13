@@ -164,7 +164,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 - [x] **M6.1** · Order-history import with configurable column mapping; order numbers tokenized · *REC-1* · **Done when** synthetic CSV imports correctly.
 - [x] **M6.2** · Matcher: multi-invoice orders, credit notes, amount/date tolerance · *REC-2, REC-4* · **Done when** synthetic scenarios tested.
-- [ ] **M6.3** · Reconciliation report API + eval metric (match rate) · *REC-3, §9* · **Done when** endpoint and metric tested.
+- [x] **M6.3** · Reconciliation report API + eval metric (match rate) · *REC-3, §9* · **Done when** endpoint and metric tested.
 - [ ] **M6.4** · [owner] · Owner runs import + reconciliation on real export · *G4* · **Done when** match rate recorded in eval report.
 
 ---
@@ -300,5 +300,7 @@ _Work discovered during tasks that is out of scope for the current task. Add ent
 - [x] Order-history imports add up (each has its own `import_id`), so importing the same export twice doubles its rows; M6.2 must pick which imports the matcher reads (e.g. the latest per mapping `file`), or the import must replace earlier rows of the same layout (needs a column or table outside architecture §7) · found in M6.1 · resolved in M6.2: latest import per order token (ADR-25)
 - [ ] The order-history import parses only ISO-8601 dates and plain/₹/INR amounts; the real export's formats are unchecked (the runner can't read it). Owner to run the import on the real files (M6.4) and report the `skipped` counts; a high `BAD_DATE`/`BAD_AMOUNT` count means `reconcile.internal.Values` needs the export's format · found in M6.1
 - [ ] The container image doesn't ship `config/order-history-mapping.yml`, so imports on Fly answer 500 until `ORDER_HISTORY_MAPPING_FILE` points at a mounted copy (deployment.md §5.1); decide whether to copy it into the image · found in M6.1
-- [ ] M6.2's matcher isn't wired yet: M6.3 needs the `reconciliation_match` migration, `POST /api/reconciliation/run`, and a `pipeline` reader that builds `ReconciliationInvoice`s from each document's current extraction (`DocumentDetailsReader`-style, ADR-21). Decide there which documents count (e.g. `AUTO_APPROVED`/`REVIEWED` only, or every extracted one) · found in M6.2
+- [x] M6.2's matcher isn't wired yet: M6.3 needs the `reconciliation_match` migration, `POST /api/reconciliation/run`, and a `pipeline` reader that builds `ReconciliationInvoice`s from each document's current extraction (`DocumentDetailsReader`-style, ADR-21). Decide there which documents count (e.g. `AUTO_APPROVED`/`REVIEWED` only, or every extracted one) · found in M6.2 · resolved in M6.3: V11, `POST /api/reconciliation/run`, `pipeline.ReconciliationInvoiceReader`; decided documents (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`, `RECONCILED`) count (ADR-26)
 - [ ] Reconciliation tolerances (±₹1.00, 30 days) are `ReconciliationTolerance.DEFAULT` constants; expose them as `invoice-intel.reconcile.*` keys when the run endpoint lands, and check the 30 days against the real export (M6.4) · found in M6.2
+- [ ] A reconciliation run doesn't move documents to `RECONCILED` (architecture §5 lifecycle); decide whether matched `AUTO_APPROVED`/`REVIEWED` documents should transition, and how a later run with a different outcome moves them back · found in M6.3
+- [ ] The eval batch reconciles every decided document in the database, not only the batch's originals; that's right on the empty database §6.9 asks for, but a reused database skews the eval's match rate · found in M6.3

@@ -28,12 +28,15 @@ import tools.jackson.databind.node.ObjectNode;
  * A run's output folder {@code <out>/<runId>/} (architecture.md §6.9): {@code config.json}
  * (EVAL-4), {@code documents.csv}, {@code fields.csv} and {@code report.md} (EVAL-1, EVAL-2). All
  * hold identifiers, settings, field names, counts, costs and timings only, never label or
- * extraction values, so the folder may be committed to {@code eval-reports/}.
+ * extraction values, so the folder may be committed to {@code eval-reports/}. A run scored from the
+ * app's eval batch also holds {@code reconciliation.json} ({@link ReconciliationCounts}, ADR-26).
  *
  * @param config the run's configuration
  * @param documents one record per document
+ * @param reconciliation the eval batch's reconciliation counts, or null when the run has none
  */
-public record RunDirectory(RunConfig config, List<DocumentRecord> documents) {
+public record RunDirectory(
+    RunConfig config, List<DocumentRecord> documents, ReconciliationCounts reconciliation) {
 
   static final String CONFIG = "config.json";
   static final String DOCUMENTS = "documents.csv";
@@ -54,6 +57,11 @@ public record RunDirectory(RunConfig config, List<DocumentRecord> documents) {
     documents = List.copyOf(documents);
   }
 
+  /** A run without reconciliation counts. */
+  public RunDirectory(RunConfig config, List<DocumentRecord> documents) {
+    this(config, documents, null);
+  }
+
   /** The run-level metrics of the documents. */
   public RunSummary summary() {
     return RunSummary.of(documents);
@@ -72,7 +80,12 @@ public record RunDirectory(RunConfig config, List<DocumentRecord> documents) {
       Files.write(dir.resolve(DOCUMENTS), documentLines(), StandardCharsets.UTF_8);
       Files.write(dir.resolve(FIELDS), fieldLines(summary), StandardCharsets.UTF_8);
       Files.writeString(
-          dir.resolve(REPORT), RunReport.markdown(config, summary), StandardCharsets.UTF_8);
+          dir.resolve(REPORT),
+          RunReport.markdown(config, summary, reconciliation),
+          StandardCharsets.UTF_8);
+      if (reconciliation != null) {
+        reconciliation.write(dir);
+      }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -181,7 +194,7 @@ public record RunDirectory(RunConfig config, List<DocumentRecord> documents) {
           records.add(record(line, dir));
         }
       }
-      return new RunDirectory(runConfig, records);
+      return new RunDirectory(runConfig, records, ReconciliationCounts.read(dir).orElse(null));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

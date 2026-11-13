@@ -868,10 +868,21 @@ It logs the outcome, score and number of reasons only (PII-8).
   ±₹1.00 and 30 days. An invoice without an order number is its own `INVOICE_WITHOUT_ORDER` row
   with a null token. The matcher reads `OrderHistoryStore.findCurrent()`: per order token, the
   rows of the latest import that has it (ADR-25), so re-importing an export replaces its rows.
-  Persisting `reconciliation_match` and `POST /api/reconciliation/run` come with the report
-  (M6.3).
-- **Report (REC-3):** `GET /api/reconciliation` returns counts and per-order rows; the eval
-  harness reads the same table.
+- **Run and report (REC-2, REC-3, M6.3, ADR-26):** `reconcile.ReconciliationService.run()` reads
+  the invoices from an `InvoiceSource`, the rows from `OrderHistoryStore.findCurrent()`, matches
+  them and replaces every `reconciliation_match` row (V11) in one `REPEATABLE READ` transaction, so
+  the table always holds exactly the latest run. `pipeline.ReconciliationInvoiceReader` is the
+  source: every document in a decided state (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`,
+  `RECONCILED`) with the extraction of its latest `SUCCEEDED` Extract run; documents that failed
+  or are mid-reprocess aren't reconciled. A run doesn't change document states (the `RECONCILED`
+  transition isn't wired). Tolerances are `ReconciliationTolerance.DEFAULT`.
+  `POST /api/reconciliation/run` runs it and `GET /api/reconciliation` reads the stored rows; both
+  answer 200 with the `ReconciliationReport`: `{orders: {<MatchStatus>: rows}, documents,
+  matchedDocuments, matchRate, rows: [{orderToken, status, invoiceIds, amountDiff}]}` (tokens,
+  document IDs, counts and amounts only, PII-3). The spec §9 **match rate** is documents in
+  `MATCHED` rows over documents in all rows (credit notes count as documents; null when there
+  are none). The eval reads the same report through the eval batch's `reconciliation.json`
+  (§6.9).
 
 ### 6.8 Review UI (`app`)
 
@@ -915,6 +926,12 @@ Command examples:
   the replayed latency and error code, which the report uses instead of the runner's wall time.
   The strategy and model are the app's configuration (`invoice-intel.llm.extraction.*`); the
   `eval run --strategy/--model` values are only recorded in `config.json` when replaying results.
+  After the last original the batch runs the reconciliation (§6.7) against the order history
+  already in the database and writes `reconciliation.json` (`documents`, `matchedDocuments`,
+  `orders` per `MatchStatus`; counts only) into the results folder (M6.3, ADR-26). `eval run
+  --results` reads it (`run.ReconciliationCounts`; a malformed file fails the run before scoring),
+  copies it into the run folder and adds a **Reconciliation** section with the match rate beside
+  the ≥ 95% target of spec §9 to `report.md`. Import the order history before the batch (M6.4).
 - Metrics (EVAL-2): per-field exact match (normalized), line-item F1 (match on description
   similarity + amount), straight-through rate, false auto-approval rate, PII recall/precision
   (span overlap ≥ 50%), cost per document, p50/p95 latency.
@@ -1047,6 +1064,13 @@ document or extraction.
 `order_history_item` (V10, M6.1): `order_token` is required, every other imported column is
 nullable (unmapped or empty in the CSV); amounts are `NUMERIC(14,2)`; indexed on `order_token`
 and `import_id`. No `import` table: `import_id` groups the rows of one import.
+
+`reconciliation_match` (V11, M6.3, ADR-26): the rows of the latest reconciliation run only (a run
+deletes and re-inserts them in one transaction); `status` has a `CHECK` on the five
+`MatchStatus` values; `order_token` is null only for `INVOICE_WITHOUT_ORDER`; `invoice_ids` is a
+JSON array of document IDs (empty for `ORDER_WITHOUT_INVOICE`); `amount_diff` is
+`NUMERIC(14,2)`, null when it can't be computed. No foreign key to `document`: the next run
+rewrites the rows anyway.
 
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
@@ -1464,6 +1488,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-23 | One JobRunr job runs a document's chain: `StageJob` starts at a stage and `PipelineService` runs each following stage in the same job; `start` and `reprocess` still enqueue. Stage runs, transactions, failures and supersede checks are unchanged (owner decision 2026-11-02, M4.12) | One job per stage (enqueue the next stage after commit), as before | Every enqueue waited for a JobRunr pickup (the first one up to the 15 s poll interval, later hand-offs about 3 s), which put the CI time to decision over the 20 s of NFR-3 (p95 up to 25 s). A failed stage already stops the chain and isn't retried by JobRunr, so separate jobs bought nothing. |
 | ADR-24 | The eval's in-process pipeline runner lives in `app` (owner decision 2026-11-13, option b2, M5.8a): `EvalBatch` runs a folder of originals with `PipelineService.runNow` and writes one `<sha256>.json` result per original; `eval run --results` scores them (`ResultsDocumentRunner`), so `eval` keeps no dependency on `app` and only scores and reports | `eval` drives a running app over HTTP (b1); allow `eval` → `app` and boot the context from `eval` (b3) | The pipeline needs `app`'s DataSource, JobRunr, S3 and Flyway wiring; running it there reuses the Testcontainers + WireMock integration setup and keeps §4.1 unchanged. Synchronous `runNow` makes per-document time pipeline time (NFR-3). |
 | ADR-25 | Reconciliation (M6.2): the matcher reads, per order token, the rows of the latest order-history import that has the token; amounts that agree with an invoice dated outside the date tolerance get a fifth status, `DATE_MISMATCH` | Read every import (re-imports double rows); replace earlier rows of the same layout on import (needs a layout column outside §7); fold date failures into `AMOUNT_MISMATCH` or `MATCHED` | Needs no schema change and keeps imports append-only; RETAIL and DIGITAL exports have disjoint orders, so both stay readable. REC-3's four outcomes stay; a date outside tolerance is neither an amount mismatch nor a clean match, and the report needs to show it. |
+| ADR-26 | Reconciliation run and report (M6.3): a run reconciles every document in a decided state (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`, `RECONCILED`) with its current extraction and replaces all `reconciliation_match` rows in one transaction; the match rate is documents in `MATCHED` rows over all reconciled documents; the eval gets it from `reconciliation.json`, written by the app's eval batch after its last original | Only `AUTO_APPROVED`/`REVIEWED` documents; every document with a succeeded Extract run; keep old runs' rows (needs a run column outside §7); `eval` reads the table over JDBC | Documents waiting for review still belong to an order, and leaving them out would turn their orders into `ORDER_WITHOUT_INVOICE`; failed and mid-reprocess documents have no current, validated extraction. One run in the table keeps §7's columns. `eval` has no database access (ADR-24), so the batch hands it counts the same way it hands over results. |
 
 ---
 
