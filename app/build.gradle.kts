@@ -16,6 +16,10 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.validation)
+    // Review UI: server-rendered pages, HTMX served from its webjar (architecture.md §6.8, ADR-27).
+    implementation(libs.spring.boot.starter.thymeleaf)
+    runtimeOnly(libs.webjars.htmx)
+    runtimeOnly(libs.webjars.locator.lite)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.flyway)
     // Stage jobs on Postgres (ADR-04); JobRunr creates and owns its own tables.

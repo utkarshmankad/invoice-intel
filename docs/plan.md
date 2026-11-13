@@ -171,7 +171,7 @@ Claude does not touch real data (`.claude/rules/pii.md`). These tasks run alongs
 
 ## M7 — Review UI
 
-- [ ] **M7.1** · Thymeleaf + HTMX layout, login page, nav · *G6* · **Done when** pages render behind login.
+- [x] **M7.1** · Thymeleaf + HTMX layout, login page, nav · *G6* · **Done when** pages render behind login. Done 2026-11-13: `app.ui` (`UiController`: `/login`, `/`; `UiModelAdvice`: user name for the nav), templates with shared head/nav fragments, plain CSS, HTMX 2.0.11 webjar via `webjars-locator-lite`, CSRF `<meta>` tags + `htmx-csrf.js` for HTMX requests; login page and static assets public; `ReviewUiIT`; architecture §6.8, §11, ADR-27.
 - [ ] **M7.2** · Review queue page · *REV-1* · **Done when** lists NEEDS_REVIEW with reasons.
 - [ ] **M7.3** · Document page: redacted image + SVG evidence overlay + field form · *REV-2* · **Done when** evidence boxes align on fixtures.
 - [ ] **M7.4** · Field corrections with audit trail + approve · *REV-3* · **Done when** corrections stored and decision updated.

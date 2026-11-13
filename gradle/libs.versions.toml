@@ -23,6 +23,7 @@ spring-ai = "2.0.2" # checked 2026-10-30; 2.0.x targets Spring Boot 4
 wiremock = "3.13.2" # checked 2026-10-30; standalone jar shades Jetty
 gatling-plugin = "3.16.0"
 picocli = "4.7.7" # checked 2026-11-03 (architecture §3, EVAL-1)
+htmx = "2.0.11" # org.webjars.npm:htmx.org, latest 2.x, checked 2026-11-13 (ADR-27; 4.x is days old)
 jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
 [libraries]
@@ -38,6 +39,7 @@ spring-boot-starter-validation = { module = "org.springframework.boot:spring-boo
 jakarta-validation-api = { module = "jakarta.validation:jakarta.validation-api" }
 spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
 spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+spring-boot-starter-thymeleaf = { module = "org.springframework.boot:spring-boot-starter-thymeleaf" }
 spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
 postgresql = { module = "org.postgresql:postgresql" }
@@ -69,6 +71,9 @@ spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 awaitility = { module = "org.awaitility:awaitility" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+webjars-htmx = { module = "org.webjars.npm:htmx.org", version.ref = "htmx" }
+# Version-free /webjars/ URLs; version managed by the Spring Boot BOM.
+webjars-locator-lite = { module = "org.webjars:webjars-locator-lite" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 spotbugs-annotations = { module = "com.github.spotbugs:spotbugs-annotations", version.ref = "spotbugs" }
 findsecbugs = { module = "com.h3xstream.findsecbugs:findsecbugs-plugin", version.ref = "findsecbugs" }

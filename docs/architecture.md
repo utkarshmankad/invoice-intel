@@ -1,6 +1,6 @@
 # Invoice Intel — Architecture
 
-> Status: Draft v0.1 · Last updated: 2026-11-02
+> Status: Draft v0.1 · Last updated: 2026-11-13
 >
 > This document defines **how** the system is built. Requirements and their IDs
 > (`PII-1`, `VAL-5`, …) come from `specs.md`; every design element below points back to them.
@@ -887,6 +887,16 @@ It logs the outcome, score and number of reasons only (PII-8).
 ### 6.8 Review UI (`app`)
 
 - Server-rendered with Thymeleaf; HTMX for partial updates (field save, approve).
+- **Layout and login** (M7.1, ADR-27): `app`'s `dev.invoiceintel.app.ui` package holds the
+  page controllers; templates live in `app/src/main/resources/templates/`, with the shared
+  `<head>` and navigation bar as fragments in `fragments/layout.html`, and plain CSS in
+  `static/css/app.css`. `/login` is the UI's own login page (Spring Security handles the POST,
+  `/login?error` and `/logout` → `/login?logout`); `/` is the home page behind login. HTMX comes
+  from its webjar (`org.webjars.npm:htmx.org`) through `webjars-locator-lite`, so templates link
+  `/webjars/htmx.org/dist/htmx.min.js` and Boot writes the version into the URL. Every page
+  carries the CSRF header name and token as `<meta>` tags; `static/js/htmx-csrf.js` adds them to
+  each HTMX request (§11). Thymeleaf forms with `th:action` get the hidden `_csrf` field
+  automatically.
 - **Queue page** (REV-1): documents in `NEEDS_REVIEW` with reason codes, sortable.
 - **Document page** (REV-2): redacted page image on the left with evidence boxes as an
   SVG overlay; field form on the right. The UI never shows unredacted images.
@@ -1309,8 +1319,9 @@ render/OCR jobs (config, default 2).
 - `/api/**` is stateless with CSRF off. Its 401 carries no `WWW-Authenticate` challenge, so a
   browser never shows a Basic prompt or caches the credentials, which is the remaining CSRF
   route for Basic auth (ADR-12). API clients send `Authorization` on the first request.
-- Public without login: `/actuator/health` and `/error` (the status page of a rejected
-  request; guarding it would turn every 401/403 into a login redirect).
+- Public without login: `/actuator/health`, `/error` (the status page of a rejected
+  request; guarding it would turn every 401/403 into a login redirect), the login page and
+  the UI's static assets (`/css/**`, `/js/**`, `/webjars/**`) so the login page renders.
   `/actuator/metrics` (§12) needs the form login like the UI.
 - All services bind to `127.0.0.1` locally (NFR-2).
 - Secrets only from env / secret store (NFR-12). `.env` is git-ignored; `.env.example` is committed.
@@ -1489,6 +1500,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-24 | The eval's in-process pipeline runner lives in `app` (owner decision 2026-11-13, option b2, M5.8a): `EvalBatch` runs a folder of originals with `PipelineService.runNow` and writes one `<sha256>.json` result per original; `eval run --results` scores them (`ResultsDocumentRunner`), so `eval` keeps no dependency on `app` and only scores and reports | `eval` drives a running app over HTTP (b1); allow `eval` → `app` and boot the context from `eval` (b3) | The pipeline needs `app`'s DataSource, JobRunr, S3 and Flyway wiring; running it there reuses the Testcontainers + WireMock integration setup and keeps §4.1 unchanged. Synchronous `runNow` makes per-document time pipeline time (NFR-3). |
 | ADR-25 | Reconciliation (M6.2): the matcher reads, per order token, the rows of the latest order-history import that has the token; amounts that agree with an invoice dated outside the date tolerance get a fifth status, `DATE_MISMATCH` | Read every import (re-imports double rows); replace earlier rows of the same layout on import (needs a layout column outside §7); fold date failures into `AMOUNT_MISMATCH` or `MATCHED` | Needs no schema change and keeps imports append-only; RETAIL and DIGITAL exports have disjoint orders, so both stay readable. REC-3's four outcomes stay; a date outside tolerance is neither an amount mismatch nor a clean match, and the report needs to show it. |
 | ADR-26 | Reconciliation run and report (M6.3): a run reconciles every document in a decided state (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`, `RECONCILED`) with its current extraction and replaces all `reconciliation_match` rows in one transaction; the match rate is documents in `MATCHED` rows over all reconciled documents; the eval gets it from `reconciliation.json`, written by the app's eval batch after its last original | Only `AUTO_APPROVED`/`REVIEWED` documents; every document with a succeeded Extract run; keep old runs' rows (needs a run column outside §7); `eval` reads the table over JDBC | Documents waiting for review still belong to an order, and leaving them out would turn their orders into `ORDER_WITHOUT_INVOICE`; failed and mid-reprocess documents have no current, validated extraction. One run in the table keeps §7's columns. `eval` has no database access (ADR-24), so the batch hands it counts the same way it hands over results. |
+| ADR-27 | Review UI layout (M7.1): HTMX 2.0.11 (latest 2.x, checked 2026-11-13) served from the `org.webjars.npm:htmx.org` webjar with `webjars-locator-lite` (version from the Boot BOM); shared head and nav as plain Thymeleaf fragments (`th:replace`), no layout dialect or Thymeleaf Spring Security extras (the user name comes from a `@ControllerAdvice` model attribute); CSRF token for HTMX requests from `<meta>` tags | HTMX copied into `static/`; a CDN `<script>`; HTMX 4.x; Thymeleaf Layout Dialect | Dependency version, lockfile and Dependabot cover the script like any other library; no third-party host at run time; 4.x was days old; fewer dependencies for one shared header. |
 
 ---
 
