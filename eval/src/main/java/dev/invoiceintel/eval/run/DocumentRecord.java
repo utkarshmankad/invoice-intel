@@ -21,7 +21,8 @@ import java.util.Set;
  * @param lineItems line-item counts, {@code null} unless extracted
  * @param costUsd the document's model cost
  * @param latencyMs wall time of the runner call
- * @param error the exception's class name for a failure, else empty
+ * @param error the exception's class name, or the pipeline's stage and failure code, for a failure,
+ *     else empty
  */
 public record DocumentRecord(
     String sha256,

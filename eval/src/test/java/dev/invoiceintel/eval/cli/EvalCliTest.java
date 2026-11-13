@@ -261,6 +261,31 @@ class EvalCliTest {
     return sha + ",true,EXTRACTED,AUTO_APPROVED," + scoreAndCost + ",";
   }
 
+  @Test
+  void run_resultsFolder_usesResultsRunnerInsteadOfFactory() throws IOException {
+    Path dataset = SyntheticDataset.write(dir.resolve("labels"));
+    Path results = Files.createDirectories(dir.resolve("results"));
+
+    int code = runCli(dataset, "--run-id", "replay", "--results", results.toString());
+
+    assertThat(code).isZero();
+    assertThat(created).isEmpty();
+    RunDirectory run = RunDirectory.read(dir.resolve("reports/replay"));
+    assertThat(run.config().runner()).isEqualTo("results");
+    // No result files: every document is skipped.
+    assertThat(out.toString()).contains("(0 extracted, 2 skipped, 0 failed)");
+  }
+
+  @Test
+  void run_resultsNotAFolder_fails() {
+    Path dataset = SyntheticDataset.write(dir.resolve("labels"));
+
+    int code = runCli(dataset, "--results", dir.resolve("missing").toString());
+
+    assertThat(code).isEqualTo(EvalCli.FAILED);
+    assertThat(err.toString()).contains("Not a folder");
+  }
+
   private int runCli(Path dataset, String... extra) {
     List<String> args =
         new ArrayList<>(

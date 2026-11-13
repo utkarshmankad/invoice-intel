@@ -3,6 +3,7 @@ data/raw/
 data/vault/
 data/order-history/
 data/labels/
+data/eval-results/
 *.env
 .env*
 !.env.example

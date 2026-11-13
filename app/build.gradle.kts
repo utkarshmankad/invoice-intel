@@ -43,6 +43,8 @@ dependencies {
     "integrationTestImplementation"(libs.wiremock.standalone)
     // Waits for stage jobs in pipeline tests (testing.md: no sleeps).
     "integrationTestImplementation"(libs.awaitility)
+    // EvalBatchIT reads the batch's result files with eval's ResultsDocumentRunner (ADR-24).
+    "integrationTestImplementation"(project(":eval"))
     // Builds image-only (scanned) PDFs for the Text stage test.
     "integrationTestImplementation"(libs.pdfbox)
 }
