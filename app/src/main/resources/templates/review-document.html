@@ -43,17 +43,27 @@
     </section>
     <section class="review-fields" aria-label="Extracted fields">
       <p class="muted" th:if="${rows.isEmpty()}">No extraction yet.</p>
-      <form class="field-form" th:unless="${rows.isEmpty()}">
+      <p class="alert alert-error" role="alert" th:if="${error}">
+        Correction not saved: a value doesn't fit its field.</p>
+      <!-- REV-3 (ADR-30): changed fields are saved as corrections; token fields stay read-only. -->
+      <form class="field-form" method="post" th:unless="${rows.isEmpty()}"
+            th:action="@{/review/{id}/fields(id=${document.id().value()})}">
         <div class="field-row" th:each="row : ${rows}" th:attr="data-field=${row.path()}">
           <label th:for="${row.htmlId()}" th:text="${row.path()}">invoiceNumber</label>
-          <input type="text" readonly th:id="${row.htmlId()}" th:name="${row.path()}"
-                 th:value="${row.value()}">
+          <input type="text" th:id="${row.htmlId()}" th:value="${row.value()}"
+                 th:name="${editable and row.correctable()} ? ${'field:' + row.path()} : null"
+                 th:readonly="${not (editable and row.correctable())}" maxlength="500">
           <span class="field-meta muted">
             <span th:text="${row.source()}">LLM</span>
             <span class="num" th:text="${row.confidence()}">0.90</span>
             <span th:if="${row.hasBox()}" class="has-evidence" title="Has an evidence box">◼</span>
           </span>
         </div>
+        <button type="submit" th:if="${editable}">Save corrections</button>
+      </form>
+      <form method="post" th:if="${editable}"
+            th:action="@{/review/{id}/approve(id=${document.id().value()})}">
+        <button type="submit" class="approve">Approve</button>
       </form>
     </section>
   </div>

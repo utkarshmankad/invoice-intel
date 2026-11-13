@@ -4,6 +4,7 @@ import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.common.extraction.Field;
 import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.extract.ExtractionStore;
+import dev.invoiceintel.pipeline.internal.FieldCorrectionRepository;
 import dev.invoiceintel.reconcile.InvoiceSource;
 import dev.invoiceintel.reconcile.ReconciliationInvoice;
 import java.util.ArrayList;
@@ -31,10 +32,12 @@ public final class ReconciliationInvoiceReader implements InvoiceSource {
 
   private final JdbcClient jdbc;
   private final ExtractionStore extractions;
+  private final FieldCorrectionRepository corrections;
 
   public ReconciliationInvoiceReader(JdbcClient jdbc) {
     this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
     this.extractions = new ExtractionStore(jdbc);
+    this.corrections = new FieldCorrectionRepository(jdbc);
   }
 
   @Override
@@ -60,7 +63,7 @@ public final class ReconciliationInvoiceReader implements InvoiceSource {
     for (var run : runs) {
       extractions
           .find(run.document(), run.runNo())
-          .map(stored -> invoice(run.document(), stored.result()))
+          .map(stored -> invoice(run.document(), corrections.current(stored.id(), stored.result())))
           .ifPresent(invoices::add);
     }
     return List.copyOf(invoices);

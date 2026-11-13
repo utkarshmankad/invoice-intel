@@ -142,6 +142,18 @@ a:hover { text-decoration: underline; }
 .field-row.active { background: #eff8ff; }
 .field-meta { font-size: 12px; display: flex; gap: 6px; }
 .has-evidence { color: #1570ef; }
+.field-row input[readonly] { background: #f2f4f7; }
+.review-fields button {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.review-fields button.approve { background: #067647; }
 @media (max-width: 900px) {
   .review-layout { grid-template-columns: 1fr; }
 }

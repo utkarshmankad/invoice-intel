@@ -39,6 +39,8 @@ public final class RedactedBlobRepository {
             (rs, row) ->
                 new PageImage(
                     rs.getInt("page_no"), new BlobKey(rs.getString("bucket"), rs.getString("key"))))
+        // list(), not stream(): an unclosed query stream keeps its pooled connection.
+        .list()
         .stream()
         .collect(Collectors.toMap(PageImage::pageNo, PageImage::key));
   }
