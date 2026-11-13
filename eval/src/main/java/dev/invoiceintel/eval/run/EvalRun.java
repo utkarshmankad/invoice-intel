@@ -39,12 +39,15 @@ public final class EvalRun {
       String error = "";
       try {
         result = runner.run(document);
+        error = result.error();
       } catch (RuntimeException e) {
         // Only the class name: messages may quote document text (PII-8).
         result = DocumentResult.failed();
         error = e.getClass().getSimpleName();
       }
-      long latencyMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+      long measured = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+      // A runner replaying results reports the pipeline time measured where the document ran.
+      long latencyMs = result.latencyMs().orElse(measured);
       total = total.plus(result.usage());
       Set<HeaderField> mismatched = null;
       LineItemCounts lineItems = null;

@@ -142,6 +142,9 @@ kill_timeout = "300s"           # let in-flight jobs finish on shutdown; check F
 
 Verify keys against the current Fly.io `fly.toml` reference before use.
 
+`invoice-intel.eval-batch.*` (eval batch, ADR-24) is local-only and must stay unset on Fly;
+setting `input` makes the app run the batch and shut down instead of serving.
+
 ---
 
 ## 6. Background jobs vs auto-stop (risk R8)

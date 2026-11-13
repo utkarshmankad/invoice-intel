@@ -5,6 +5,7 @@ import dev.invoiceintel.eval.run.DocumentRecord;
 import dev.invoiceintel.eval.run.DocumentResult;
 import dev.invoiceintel.eval.run.DocumentRunner;
 import dev.invoiceintel.eval.run.EvalRun;
+import dev.invoiceintel.eval.run.ResultsDocumentRunner;
 import dev.invoiceintel.eval.run.RunConfig;
 import dev.invoiceintel.eval.run.RunDirectory;
 import dev.invoiceintel.eval.run.RunReport;
@@ -130,7 +131,14 @@ public final class EvalCli {
               description =
                   "Rupees per US dollar, to report cost per document in INR (NFR-4); recorded in"
                       + " config.json.")
-          BigDecimal usdInr) {
+          BigDecimal usdInr,
+      @Option(
+              names = "--results",
+              paramLabel = "DIR",
+              description =
+                  "Folder of <sha256>.json results written by the app's eval batch (ADR-24);"
+                      + " scores them instead of running the configured runner.")
+          Path results) {
     String strategyName = strategy.toUpperCase(Locale.ROOT);
     if (!STRATEGIES.contains(strategyName)) {
       err.println("Unknown strategy " + strategy + "; use one of " + STRATEGIES);
@@ -169,7 +177,12 @@ public final class EvalCli {
       return FAILED;
     }
 
-    DocumentRunner runner = runners.create(strategyName, model);
+    if (results != null && !Files.isDirectory(results)) {
+      err.println("Not a folder: " + results);
+      return FAILED;
+    }
+    DocumentRunner runner =
+        results == null ? runners.create(strategyName, model) : new ResultsDocumentRunner(results);
     EvalRun.Result result = EvalRun.execute(data.documents(), runner);
     List<DocumentRecord> records = result.records();
     RunConfig config =

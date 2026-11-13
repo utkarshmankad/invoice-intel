@@ -49,6 +49,14 @@ class PipelineServiceTest {
         .isInstanceOf(IllegalStateException.class);
   }
 
+  @Test
+  void runNow_withoutTextHandler_isAnError() {
+    var service = service(List.of());
+
+    assertThatThrownBy(() -> service.runNow(DocumentId.random()))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
   @ParameterizedTest
   @CsvSource({
     "EXTRACT, PII_LEAK, true",

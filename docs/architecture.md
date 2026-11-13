@@ -861,7 +861,29 @@ Command examples:
 ./gradlew :eval:run --args="compare runs/2026-11-02-a runs/2026-11-02-b"
 ```
 
-- Runs the pipeline in-process against a dataset (Testcontainers or the local Compose stack).
+- The pipeline runs in-process in `app`, not in `eval` (ADR-24, owner decision 2026-11-13, plan
+  M5.8a): the **eval batch** (`dev.invoiceintel.app.eval.EvalBatch`) ingests every regular file
+  of a folder of originals (name order, not recursive), runs each through
+  `PipelineService.runNow` (the whole chain in the calling thread, no JobRunr queue wait, so its
+  time is pipeline time, NFR-3) and writes `<sha256>.json` per original into a results folder.
+  `eval run --results DIR` scores those files with `run.ResultsDocumentRunner` (a label without a
+  result file is SKIPPED). The batch never reads labels; `eval` never reads originals or the
+  stack. Owner run against the local stack (empty database; an original already ingested is
+  skipped and gets no result file):
+  ```bash
+  ./gradlew :app:bootRun --args='--spring.profiles.active=local --invoice-intel.eval-batch.input=data/raw --invoice-intel.eval-batch.output=data/eval-results'
+  ./gradlew :eval:run --args="run --dataset data/labels --strategy TEXT --results data/eval-results"
+  ```
+  With `invoice-intel.eval-batch.input` set, an `ApplicationRunner` runs the batch at start-up and
+  closes the application. Result file: `sha256`, `status` (`EXTRACTED|FAILED`; an extraction
+  counts only once decided `AUTO_APPROVED|NEEDS_REVIEW`, anything else is FAILED), `decision`,
+  `error` (failed stage and failure code, e.g. `EXTRACT LLM_INVALID_OUTPUT`, or
+  `STOPPED_IN <state>`), `latencyMs`, `usage` (`costUsd` as a string, distinct `modelIds` and
+  `promptVersions` of the document's `llm_call` rows) and `extraction` (the current
+  `InvoiceExtraction`, pseudonymized as the model returned it, or null). `DocumentResult` carries
+  the replayed latency and error code, which the report uses instead of the runner's wall time.
+  The strategy and model are the app's configuration (`invoice-intel.llm.extraction.*`); the
+  `eval run --strategy/--model` values are only recorded in `config.json` when replaying results.
 - Metrics (EVAL-2): per-field exact match (normalized), line-item F1 (match on description
   similarity + amount), straight-through rate, false auto-approval rate, PII recall/precision
   (span overlap ≥ 50%), cost per document, p50/p95 latency.
@@ -922,9 +944,9 @@ Command examples:
   strategy, model, runner name) and `documents.csv` (`sha256,synthetic,status,latency_ms,error`;
   status `EXTRACTED|SKIPPED|FAILED`, error is an exception class name only). The run ID
   defaults to the UTC start time `yyyy-MM-dd-HHmmss`. `compare RUN_A RUN_B` prints a Markdown
-  table of both configs, document counts and metrics (M5.5). The only runner
-  so far is `StubDocumentRunner` (marks every document `SKIPPED`, no LLM, no stack); the
-  in-process pipeline runner replaces it in `Main`.
+  table of both configs, document counts and metrics (M5.5). Without
+  `--results` the runner is `StubDocumentRunner` (marks every document `SKIPPED`, no LLM, no
+  stack); with `--results DIR` it is `ResultsDocumentRunner` (above).
 
 ---
 
@@ -1074,6 +1096,7 @@ credentials from `access-key`/`secret-key`.
 data/raw/                 git-ignored; drop zone for downloaded invoices
 data/order-history/       git-ignored; Amazon export
 data/labels/              git-ignored; hand labels with real values (handled like data/raw/, ADR-22)
+data/eval-results/        git-ignored; eval batch result files (extracted values, handled like data/raw/, ADR-24)
 data/samples-redacted/    committed; irreversibly redacted PDFs + expected JSON
 eval-reports/             committed; metrics only
 ```
@@ -1171,6 +1194,9 @@ default 0.85, within (0, 1]; M4.7),
   `LLM_EXTRACTION_MODEL` (default blank: stage off) with `LLM_EXTRACTION_STRATEGY` (default
   `text`). The Anthropic key comes only from `LLM_ANTHROPIC_API_KEY` (default empty); Ollama's
   server from `LLM_OLLAMA_BASE_URL` (default loopback). Tests point the `local` model at WireMock.
+- `invoice-intel.eval-batch.input` / `.output` (M5.8a, ADR-24, `app.eval.EvalBatchProperties`):
+  unset in every profile; the owner passes both on the `bootRun` command line to run the eval
+  batch at start-up instead of serving (§6.9). Never set in the `fly` profile.
 - The `fly` profile is added in Phase 2 (`deployment.md`).
 - The typed skeleton is one record, `dev.invoiceintel.app.config.InvoiceIntelProperties`
   (`security`, `storage`, `text`, `pii`, `validate` so far), validated at start-up. A group moves into its own module
@@ -1291,7 +1317,7 @@ Logs are JSON with `documentId`, `stage`, `runNo`. Locally, `/actuator/metrics` 
 | Redaction proof | After redaction, re-extract text and OCR the redacted PDF; assert no known PII string is present | PII-4 test |
 | Integration | Full pipeline with Postgres + SeaweedFS containers and WireMock LLM | Testcontainers, WireMock |
 | Architecture | Module dependency rules, PII gate rules (§6.4) | ArchUnit, in `app/src/test` (`dev.invoiceintel.app.architecture`); `app` adds every module as a test-only dependency so the rules see all main classes |
-| Eval smoke | 5 redacted sample docs through the pipeline in CI with stubbed LLM; checks wiring, not accuracy | eval module |
+| Eval smoke | Synthetic documents through the eval batch in CI with stubbed LLM, scored by `eval run --results`; checks wiring, not accuracy (M5.9; `EvalBatchIT` covers the batch and the result-file contract, M5.8a) | `app` integration test, eval module |
 | Smoke | Full container stack; health, auth, upload, dedupe, pipeline status | `scripts/ci/smoke-test.sh` |
 | Performance | API latency and end-to-end time to decision under load, stubbed LLM | Gatling, `perf` module |
 
@@ -1399,6 +1425,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-21 | Document detail read model in `pipeline` (M4.8): `DocumentDetailsReader` joins the `document` row, the current extraction and the current decision and rule results into `DocumentDetails`, mapping `validate` types to its own records, and `app` maps that to the response | `app` reads `extract`/`validate` stores directly | `app` may not depend on `extract` (§4.1), and only `pipeline` knows which stage run is current, so superseded outputs can't leak into the API. |
 | ADR-22 | Hand labels hold real values as printed, kept private in git-ignored `data/labels/` and handled like `data/raw/` (`.claude/rules/pii.md`); the eval tokenizes PII fields and locates span text at run time (owner decision 2026-11-02, M5.1) | Pseudonymized labels (tokens and character offsets), as this section said before | The owner can't compute keyed tokens or text-layer offsets by hand, so pseudonymized labels would need a helper that runs the Text stage, and every label would break on a `TOKEN_KEYSET` rotation. `pii.md` already treats `data/labels/` as real personal data, so the risk doesn't change. |
 | ADR-23 | One JobRunr job runs a document's chain: `StageJob` starts at a stage and `PipelineService` runs each following stage in the same job; `start` and `reprocess` still enqueue. Stage runs, transactions, failures and supersede checks are unchanged (owner decision 2026-11-02, M4.12) | One job per stage (enqueue the next stage after commit), as before | Every enqueue waited for a JobRunr pickup (the first one up to the 15 s poll interval, later hand-offs about 3 s), which put the CI time to decision over the 20 s of NFR-3 (p95 up to 25 s). A failed stage already stops the chain and isn't retried by JobRunr, so separate jobs bought nothing. |
+| ADR-24 | The eval's in-process pipeline runner lives in `app` (owner decision 2026-11-13, option b2, M5.8a): `EvalBatch` runs a folder of originals with `PipelineService.runNow` and writes one `<sha256>.json` result per original; `eval run --results` scores them (`ResultsDocumentRunner`), so `eval` keeps no dependency on `app` and only scores and reports | `eval` drives a running app over HTTP (b1); allow `eval` → `app` and boot the context from `eval` (b3) | The pipeline needs `app`'s DataSource, JobRunr, S3 and Flyway wiring; running it there reuses the Testcontainers + WireMock integration setup and keeps §4.1 unchanged. Synchronous `runNow` makes per-document time pipeline time (NFR-3). |
 
 ---
 

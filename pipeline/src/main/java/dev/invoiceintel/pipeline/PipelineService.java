@@ -76,6 +76,16 @@ public final class PipelineService {
   }
 
   /**
+   * Runs the whole chain for a newly received document in the calling thread, without JobRunr, and
+   * returns once it stops (decided, failed or skipped). Used by the eval batch (architecture.md
+   * §6.9, ADR-24) so its timing is pipeline time with no queue wait (NFR-3); stage runs, failures
+   * and metrics are recorded exactly as for a queued job.
+   */
+  public void runNow(DocumentId id) {
+    runStage(Objects.requireNonNull(id, "id"), Stage.TEXT);
+  }
+
+  /**
    * Re-runs a document from {@code fromStage} (NFR-5): supersedes the runs of that stage and every
    * later one, moves the document back to the stage's input state and enqueues the stage. Outputs
    * of superseded runs stay in place but are no longer current.

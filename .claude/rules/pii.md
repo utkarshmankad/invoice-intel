@@ -13,8 +13,8 @@ descriptions are not PII (spec §6.1).
 ## Claude's own access
 
 - Never read, list contents of, `cat`, `grep`, `head`, open or summarize files under
-  `data/raw/`, `data/order-history/`, `data/labels/` or `data/vault/`. These hold real personal
-  data, and reading them sends it to a remote model.
+  `data/raw/`, `data/order-history/`, `data/labels/`, `data/eval-results/` or `data/vault/`.
+  These hold real personal data (eval batch results hold extracted values, ADR-24), and reading them sends it to a remote model.
 - Never query `text_layer`, `pii_vault`, `order_history_item` or raw-bucket objects and print
   the results. Counts and IDs are fine.
 - To debug extraction or PII on a real document, ask the owner to run the command and share
