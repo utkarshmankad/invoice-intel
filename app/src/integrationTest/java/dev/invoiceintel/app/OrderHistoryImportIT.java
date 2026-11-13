@@ -3,13 +3,16 @@ package dev.invoiceintel.app;
 import static dev.invoiceintel.app.TestAdminConfiguration.ADMIN_PASSWORD;
 import static dev.invoiceintel.app.TestAdminConfiguration.ADMIN_USERNAME;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import dev.invoiceintel.pii.PiiType;
 import dev.invoiceintel.pii.TokenGenerator;
 import dev.invoiceintel.reconcile.ImportId;
+import dev.invoiceintel.reconcile.OrderHistoryItem;
 import dev.invoiceintel.reconcile.OrderHistoryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -19,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,6 +105,35 @@ class OrderHistoryImportIT {
             .query(Long.class)
             .single();
     assertThat(clear).isZero();
+  }
+
+  @Test
+  void findCurrent_reimport_readsLatestImportPerOrderOnly() {
+    var store = new OrderHistoryStore(jdbc);
+    var reimported = "TEST-" + UUID.randomUUID();
+    var onlyEarlier = "TEST-" + UUID.randomUUID();
+    var day = LocalDate.of(2025, 1, 10);
+    // Separate transactions, so the second import's created_at is later.
+    store.insert(
+        ImportId.random(),
+        List.of(
+            new OrderHistoryItem(reimported, day, null, null, 1, null, new BigDecimal("10.00")),
+            new OrderHistoryItem(onlyEarlier, day, null, null, 1, null, new BigDecimal("5.00"))));
+    store.insert(
+        ImportId.random(),
+        List.of(
+            new OrderHistoryItem(reimported, day, null, null, 1, null, new BigDecimal("10.00")),
+            new OrderHistoryItem(reimported, day, null, null, 2, null, new BigDecimal("20.00"))));
+
+    var current =
+        store.findCurrent().stream()
+            .filter(i -> i.orderToken().equals(reimported) || i.orderToken().equals(onlyEarlier))
+            .toList();
+
+    assertThat(current)
+        .extracting(OrderHistoryItem::orderToken, i -> i.itemTotal().toPlainString())
+        .containsExactlyInAnyOrder(
+            tuple(reimported, "10.00"), tuple(reimported, "20.00"), tuple(onlyEarlier, "5.00"));
   }
 
   @Test

@@ -855,6 +855,21 @@ It logs the outcome, score and number of reasons only (PII-8).
   2. For each order: Σ invoice `grandTotal` (minus credit notes) vs Σ order totals (±₹1),
      and invoice date within N days of order date.
   3. Unmatched sides become `INVOICE_WITHOUT_ORDER` or `ORDER_WITHOUT_INVOICE`.
+  Implementation (M6.2): `ReconciliationMatcher` in `reconcile` is pure: it takes
+  `ReconciliationInvoice`s (document ID, class, order token, invoice date, grand total, read by
+  the caller from each document's current extraction, since `reconcile` can't depend on
+  `extract`, §4.1) and `OrderHistoryItem`s, and returns one `ReconciliationMatch` per order
+  token (`orderToken`, `MatchStatus`, `invoiceIds`, `amountDiff` = invoices − credit notes −
+  order, scale 2). Credit notes (`documentClass` `CREDIT_NOTE`) subtract their total's magnitude
+  and aren't date-checked; a row's total is `item_total`, else `unit_price × quantity`
+  (quantity 1 when missing). An unknown amount on either side is `AMOUNT_MISMATCH` with no
+  diff. Amounts that agree but a non-credit-note invoice dated outside the tolerance of the
+  order's earliest date give `DATE_MISMATCH` (ADR-25). `ReconciliationTolerance.DEFAULT` is
+  ±₹1.00 and 30 days. An invoice without an order number is its own `INVOICE_WITHOUT_ORDER` row
+  with a null token. The matcher reads `OrderHistoryStore.findCurrent()`: per order token, the
+  rows of the latest import that has it (ADR-25), so re-importing an export replaces its rows.
+  Persisting `reconciliation_match` and `POST /api/reconciliation/run` come with the report
+  (M6.3).
 - **Report (REC-3):** `GET /api/reconciliation` returns counts and per-order rows; the eval
   harness reads the same table.
 
@@ -1448,6 +1463,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-22 | Hand labels hold real values as printed, kept private in git-ignored `data/labels/` and handled like `data/raw/` (`.claude/rules/pii.md`); the eval tokenizes PII fields and locates span text at run time (owner decision 2026-11-02, M5.1) | Pseudonymized labels (tokens and character offsets), as this section said before | The owner can't compute keyed tokens or text-layer offsets by hand, so pseudonymized labels would need a helper that runs the Text stage, and every label would break on a `TOKEN_KEYSET` rotation. `pii.md` already treats `data/labels/` as real personal data, so the risk doesn't change. |
 | ADR-23 | One JobRunr job runs a document's chain: `StageJob` starts at a stage and `PipelineService` runs each following stage in the same job; `start` and `reprocess` still enqueue. Stage runs, transactions, failures and supersede checks are unchanged (owner decision 2026-11-02, M4.12) | One job per stage (enqueue the next stage after commit), as before | Every enqueue waited for a JobRunr pickup (the first one up to the 15 s poll interval, later hand-offs about 3 s), which put the CI time to decision over the 20 s of NFR-3 (p95 up to 25 s). A failed stage already stops the chain and isn't retried by JobRunr, so separate jobs bought nothing. |
 | ADR-24 | The eval's in-process pipeline runner lives in `app` (owner decision 2026-11-13, option b2, M5.8a): `EvalBatch` runs a folder of originals with `PipelineService.runNow` and writes one `<sha256>.json` result per original; `eval run --results` scores them (`ResultsDocumentRunner`), so `eval` keeps no dependency on `app` and only scores and reports | `eval` drives a running app over HTTP (b1); allow `eval` → `app` and boot the context from `eval` (b3) | The pipeline needs `app`'s DataSource, JobRunr, S3 and Flyway wiring; running it there reuses the Testcontainers + WireMock integration setup and keeps §4.1 unchanged. Synchronous `runNow` makes per-document time pipeline time (NFR-3). |
+| ADR-25 | Reconciliation (M6.2): the matcher reads, per order token, the rows of the latest order-history import that has the token; amounts that agree with an invoice dated outside the date tolerance get a fifth status, `DATE_MISMATCH` | Read every import (re-imports double rows); replace earlier rows of the same layout on import (needs a layout column outside §7); fold date failures into `AMOUNT_MISMATCH` or `MATCHED` | Needs no schema change and keeps imports append-only; RETAIL and DIGITAL exports have disjoint orders, so both stay readable. REC-3's four outcomes stay; a date outside tolerance is neither an amount mismatch nor a clean match, and the report needs to show it. |
 
 ---
 
