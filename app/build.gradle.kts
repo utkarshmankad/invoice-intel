@@ -9,6 +9,8 @@ dependencies {
     implementation(project(":pipeline"))
     // Typed `invoice-intel.pii.*` config builds PiiSettings (architecture.md §4.1, §10).
     implementation(project(":pii"))
+    // Order-history import (REC-1, architecture.md §6.7); app supplies the order tokenizer.
+    implementation(project(":reconcile"))
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)

@@ -1,0 +1,22 @@
+# Synthetic order-history mapping for OrderHistoryImportIT (same shape as
+# config/order-history-mapping.yml; testing.md: synthetic fixtures only).
+files:
+  - file: synthetic-retail.csv
+    kind: RETAIL
+    columns:
+      - name: "Order ID"
+        target: order_token
+      - name: "Order Date"
+        target: order_date
+      - name: "Product Name"
+        target: product_name
+      - name: "ASIN"
+        target: asin
+      - name: "Original Quantity"
+        target: quantity
+      - name: "Unit Price"
+        target: unit_price
+      - name: "Total Amount"
+        target: item_total
+      - name: "Shipping Address"
+        target: null

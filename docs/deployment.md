@@ -88,6 +88,7 @@ Set a spending alert or limit on every paid account before the first deploy.
 | `LLM_*_API_KEY` | LLM provider keys | `fly secrets set` |
 | `LLM_EXTRACTION_MODEL`, `LLM_EXTRACTION_STRATEGY` | Registry model and strategy of the Extract stage (blank model: stage off, documents stop in `PII_CLEAN`); `LLM_ANTHROPIC_MODEL_ID`, `LLM_OLLAMA_MODEL_ID`, `LLM_OLLAMA_BASE_URL` override the defaults in `application.yaml` (architecture.md §10, ADR-18). The Anthropic key is `LLM_ANTHROPIC_API_KEY` | `fly.toml` `[env]` |
 | `VALIDATE_APPROVE_THRESHOLD` | VAL-8 auto-approval threshold, default `0.85`, within (0, 1] (architecture.md §6.6, §10) | `fly.toml` `[env]` |
+| `ORDER_HISTORY_MAPPING_FILE` | Order-history column mapping (REC-1), default `config/order-history-mapping.yml` relative to the working directory; the image doesn't contain `config/` yet, so set it to a mounted file before importing on Fly (architecture.md §6.7, §10) | `fly.toml` `[env]` |
 | `VAULT_KEYSET` | Encryption key for the PII vault (Tink AEAD JSON keyset) | `fly secrets set` |
 | `TOKEN_KEYSET` | Key for deterministic PII tokens (Tink `HMAC_SHA256_256BITTAG_RAW` JSON keyset); never rotated once tokens are stored | `fly secrets set` |
 | `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` (or OAuth settings) | Login; user defaults to `admin`, password is required | `fly secrets set` |

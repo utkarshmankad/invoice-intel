@@ -834,6 +834,22 @@ It logs the outcome, score and number of reasons only (PII-8).
 - **Import (REC-1):** `POST /api/order-history` takes the Amazon CSV. Column mapping lives
   in `config/order-history-mapping.yml`. Rows are stored with order numbers tokenized and
   product names kept.
+  Implementation (M6.1): the CSV is the multipart part `file`, read as UTF-8 RFC 4180
+  (`reconcile.internal.CsvReader`, no CSV library). The mapping file
+  (`invoice-intel.order-history.mapping-file`, read by `app`'s `MappingFileReader` on every
+  import) lists one entry per export layout (`file`, `kind`, `columns` of `name` → `target`); the
+  import uses the entry whose column names are exactly the CSV header, in any order, and
+  otherwise answers 400 `UNKNOWN_COLUMNS` (also `EMPTY_FILE`, `MALFORMED_CSV`). Targets are the
+  `order_history_item` columns (`OrderHistoryField`); `order_token` is required. `reconcile`
+  can't depend on `pii` (§4.1), so it takes an `OrderTokenizer`; `app` backs it with
+  `TokenGenerator.token(ORDER_NUMBER, …)`, the same token the PII stage gives order numbers in
+  invoices, and stores no vault entry. Cells: blanks and "Not Available"/"N/A"/"-" are null;
+  dates are ISO-8601 dates or date-times (an offset is read in IST); amounts drop `₹`/`INR`/
+  `Rs.`, spaces and thousands separators and are scale 2 half-up. A row with no order ID, the
+  wrong field count or an unreadable date, quantity or amount is skipped and counted by reason.
+  `OrderHistoryImporter` stores the readable rows under a new `import_id` in one transaction and
+  returns 201 `{importId, mapping, kind, imported, skipped}` (counts only, PII-8). Imports add
+  up; the matcher (M6.2) decides which imports it reads.
 - **Matching (REC-2, REC-4):**
   1. Group invoices by `orderNumber` token; group order rows by the same token.
   2. For each order: Σ invoice `grandTotal` (minus credit notes) vs Σ order totals (±₹1),
@@ -1013,6 +1029,10 @@ validated again; `extraction_id` may be null only for `FAILED`; `score` is `NUME
 `{code, ruleId, message}` (PII-8: no values or document text). Rows cascade-delete with their
 document or extraction.
 
+`order_history_item` (V10, M6.1): `order_token` is required, every other imported column is
+nullable (unmapped or empty in the CSV); amounts are `NUMERIC(14,2)`; indexed on `order_token`
+and `import_id`. No `import` table: `import_id` groups the rows of one import.
+
 `blob_ref` (V2, M1.3): `kind` has a `CHECK` on the four kinds; `page_no` is set exactly for
 `PAGE_IMAGE` and `REDACTED_PAGE`; `(bucket, key)` is unique; rows cascade-delete with their
 document.
@@ -1169,7 +1189,9 @@ local-llm}`, `ner.{model-dir, threshold}`, `local-llm.endpoint`; M2.9), `llm.mod
 `llm.max-concurrent-calls.<provider>`, `llm.default-max-concurrent-calls` (M3.3),
 `llm.extraction.{model, strategy}`, `llm.ollama.base-url`, `llm.anthropic.{base-url, api-key,
 max-tokens, timeout}` (M3.8), `validate.approve-threshold` (VAL-8, `VALIDATE_APPROVE_THRESHOLD`,
-default 0.85, within (0, 1]; M4.7),
+default 0.85, within (0, 1]; M4.7), `order-history.mapping-file` (REC-1,
+`ORDER_HISTORY_MAPPING_FILE`, default `config/order-history-mapping.yml` relative to the working
+directory; M6.1),
 `storage.*`, `text.*` (DPI, OCR languages, `tessdata-path`, `min-text-chars`,
 `max-concurrent-page-jobs`).
 
