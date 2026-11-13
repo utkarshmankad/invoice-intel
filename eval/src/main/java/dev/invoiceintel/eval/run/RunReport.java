@@ -28,6 +28,7 @@ public final class RunReport {
   static final String COST_INR = "Cost per document (INR)";
   static final String P50 = "Latency p50";
   static final String P95 = "Latency p95";
+  static final String MATCH_RATE = "Reconciliation match rate";
 
   private static final Map<String, String> TARGETS =
       Map.of(
@@ -36,12 +37,22 @@ public final class RunReport {
           STRAIGHT_THROUGH, "≥ 70% (§9)",
           FALSE_AUTO_APPROVAL, "≤ 2% (§9)",
           COST_INR, "≤ ₹1 (NFR-4)",
-          P95, "≤ 20 s digital PDF (NFR-3)");
+          P95, "≤ 20 s digital PDF (NFR-3)",
+          MATCH_RATE, "≥ 95% (§9)");
 
   private RunReport() {}
 
-  /** The report text. */
+  /** The report text of a run without reconciliation counts. */
   public static String markdown(RunConfig config, RunSummary summary) {
+    return markdown(config, summary, null);
+  }
+
+  /**
+   * The report text; a {@code Reconciliation} section follows the field accuracy when {@code
+   * reconciliation} isn't null.
+   */
+  public static String markdown(
+      RunConfig config, RunSummary summary, ReconciliationCounts reconciliation) {
     StringBuilder md = new StringBuilder(2048);
     md.append("# Eval run ").append(config.runId()).append("\n\n");
     md.append("| Setting | Value |\n|---|---|\n");
@@ -89,7 +100,29 @@ public final class RunReport {
           .append(counts.total() == 0 ? NONE : percent(counts.accuracy()))
           .append(" |\n");
     }
+    if (reconciliation != null) {
+      reconciliation(md, reconciliation);
+    }
     return md.toString();
+  }
+
+  private static void reconciliation(StringBuilder md, ReconciliationCounts counts) {
+    md.append("\n## Reconciliation\n\n| Metric | Value | Target |\n|---|---|---|\n");
+    md.append("| ")
+        .append(MATCH_RATE)
+        .append(" | ")
+        .append(percent(counts.matchRate()))
+        .append(" | ")
+        .append(TARGETS.get(MATCH_RATE))
+        .append(" |\n");
+    md.append("| Documents reconciled | ").append(counts.documents()).append(" | |\n");
+    md.append("| Documents matched | ").append(counts.matchedDocuments()).append(" | |\n");
+    md.append("\n| Order status | Rows |\n|---|---|\n");
+    counts.orders().forEach((status, rows) -> row(md, status, Integer.toString(rows)));
+    md.append(
+        "\nThe eval batch reconciled every decided document in the database with the order history"
+            + " imported there; the match rate is documents in MATCHED rows over all reconciled"
+            + " documents (ADR-26).\n");
   }
 
   /** The EVAL-2 metrics by display name, in report order; {@code compare} prints the same. */

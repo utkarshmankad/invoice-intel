@@ -12,6 +12,7 @@ import dev.invoiceintel.common.fixtures.InvoiceType;
 import dev.invoiceintel.common.fixtures.SyntheticInvoiceGenerator;
 import dev.invoiceintel.eval.run.DocumentResult;
 import dev.invoiceintel.eval.run.LabelledDocument;
+import dev.invoiceintel.eval.run.ReconciliationCounts;
 import dev.invoiceintel.eval.run.ResultsDocumentRunner;
 import java.io.IOException;
 import java.io.InputStream;
@@ -101,6 +102,11 @@ class EvalBatchIT {
       assertThat(result.path("extraction").path("grandTotal").path("value").decimalValue())
           .isEqualByComparingTo(new BigDecimal("118.00"));
     }
+
+    // The batch reconciles after the last original; the eval reads the counts (ADR-26).
+    ReconciliationCounts reconciliation = ReconciliationCounts.read(output).orElseThrow();
+    assertThat(reconciliation.documents()).isGreaterThanOrEqualTo(2);
+    assertThat(reconciliation.orders()).containsKey("INVOICE_WITHOUT_ORDER");
 
     // The eval side reads the same files (contract between app and eval).
     DocumentResult replayed =

@@ -18,6 +18,9 @@ dependencies {
     implementation(project(":extract"))
     // The Validate stage handler runs the rules and the VAL-8 decision (architecture.md §5.2, §6.6).
     implementation(project(":validate"))
+    // ReconciliationInvoiceReader feeds each document's current extraction to the matcher
+    // (REC-2, architecture.md §6.7, ADR-26).
+    api(project(":reconcile"))
     // ExtractStageConfiguration is on only when an extraction model is configured.
     implementation(libs.spring.boot.autoconfigure)
     implementation(libs.slf4j.api)

@@ -7,6 +7,9 @@ import dev.invoiceintel.pipeline.DocumentDetails;
 import dev.invoiceintel.pipeline.DocumentDetailsReader;
 import dev.invoiceintel.pipeline.DocumentState;
 import dev.invoiceintel.pipeline.PipelineService;
+import dev.invoiceintel.reconcile.MatchStatus;
+import dev.invoiceintel.reconcile.ReconciliationReport;
+import dev.invoiceintel.reconcile.ReconciliationService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
@@ -36,26 +39,36 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>A result holds the status, the VAL-8 decision, the stage and failure code of a failed
  * document, the pipeline time, the model usage summed over the document's {@code llm_call} rows and
  * the current extraction (pseudonymized, as the model returned it). Logs carry counts only (PII-8).
+ *
+ * <p>After the last original the batch runs the reconciliation (REC-2, ADR-26) against the order
+ * history already imported into the database and writes its counts to {@value #RECONCILIATION}, so
+ * {@code eval run --results} reports the spec §9 match rate. Counts only, no tokens or IDs.
  */
 public final class EvalBatch {
 
   private static final Logger log = LoggerFactory.getLogger(EvalBatch.class);
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
+  /** The reconciliation counts file in the output folder; never a {@code <sha256>.json} name. */
+  public static final String RECONCILIATION = "reconciliation.json";
+
   private final IngestService ingest;
   private final PipelineService pipeline;
   private final DocumentDetailsReader details;
   private final JdbcClient jdbc;
+  private final ReconciliationService reconciliation;
 
   public EvalBatch(
       IngestService ingest,
       PipelineService pipeline,
       DocumentDetailsReader details,
-      JdbcClient jdbc) {
+      JdbcClient jdbc,
+      ReconciliationService reconciliation) {
     this.ingest = Objects.requireNonNull(ingest, "ingest");
     this.pipeline = Objects.requireNonNull(pipeline, "pipeline");
     this.details = Objects.requireNonNull(details, "details");
     this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
+    this.reconciliation = Objects.requireNonNull(reconciliation, "reconciliation");
   }
 
   /** How many originals ran, and how many were already in the database and skipped. */
@@ -63,8 +76,9 @@ public final class EvalBatch {
 
   /**
    * Runs every regular file in {@code input} (not recursive, in name order) and writes one result
-   * file per original into {@code output}. An original already in the database is skipped and gets
-   * no result file (the eval then counts it as skipped); run against an empty database.
+   * file per original into {@code output}, then reconciles and writes {@value #RECONCILIATION}. An
+   * original already in the database is skipped and gets no result file (the eval then counts it as
+   * skipped); run against a database that holds only the order history.
    */
   public Summary run(Path input, Path output) {
     if (!Files.isDirectory(input)) {
@@ -86,6 +100,7 @@ public final class EvalBatch {
         duplicates++;
       }
     }
+    write(output.resolve(RECONCILIATION), reconciliationCounts(reconciliation.run()));
     log.info("eval batch finished: {} ran, {} duplicates skipped", ran, duplicates);
     return new Summary(ran, duplicates);
   }
@@ -140,6 +155,19 @@ public final class EvalBatch {
       return "STOPPED_IN " + document.state().name();
     }
     return document.failedStage().name() + " " + Objects.toString(document.failureCode(), "");
+  }
+
+  /** Counts only: rows per status, documents and matched documents (ADR-26). */
+  static Map<String, Object> reconciliationCounts(ReconciliationReport report) {
+    Map<String, Object> orders = new LinkedHashMap<>();
+    for (MatchStatus status : MatchStatus.values()) {
+      orders.put(status.name(), report.orders().get(status));
+    }
+    Map<String, Object> counts = new LinkedHashMap<>();
+    counts.put("documents", report.documents());
+    counts.put("matchedDocuments", report.matchedDocuments());
+    counts.put("orders", orders);
+    return counts;
   }
 
   private Map<String, Object> usage(DocumentId id) {

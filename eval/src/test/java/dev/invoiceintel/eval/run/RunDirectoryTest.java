@@ -88,6 +88,32 @@ class RunDirectoryTest {
   }
 
   @Test
+  void writeThenRead_withReconciliation_roundTripsAndReportsMatchRate() throws IOException {
+    Path run = dir.resolve("reports/rec");
+    var counts = ReconciliationCountsTest.sample();
+
+    new RunDirectory(CONFIG, RECORDS, counts).write(run);
+    RunDirectory read = RunDirectory.read(run);
+
+    assertThat(read.reconciliation()).isEqualTo(counts);
+    assertThat(Files.readString(run.resolve("report.md")))
+        .contains("## Reconciliation")
+        .contains("| Reconciliation match rate | 75.0% | ≥ 95% (§9) |")
+        .contains("| ORDER_WITHOUT_INVOICE | 2 |");
+  }
+
+  @Test
+  void write_withoutReconciliation_hasNoSectionOrFile() throws IOException {
+    Path run = dir.resolve("reports/none");
+
+    new RunDirectory(CONFIG, RECORDS).write(run);
+
+    assertThat(run.resolve(ReconciliationCounts.FILE)).doesNotExist();
+    assertThat(Files.readString(run.resolve("report.md"))).doesNotContain("Reconciliation");
+    assertThat(RunDirectory.read(run).reconciliation()).isNull();
+  }
+
+  @Test
   void write_recordsConfigCsvsAndReport() throws IOException {
     Path run = dir.resolve("run");
 

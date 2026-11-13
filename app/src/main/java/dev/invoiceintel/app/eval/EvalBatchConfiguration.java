@@ -3,6 +3,7 @@ package dev.invoiceintel.app.eval;
 import dev.invoiceintel.ingest.IngestService;
 import dev.invoiceintel.pipeline.DocumentDetailsReader;
 import dev.invoiceintel.pipeline.PipelineService;
+import dev.invoiceintel.reconcile.ReconciliationService;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -27,8 +28,9 @@ public class EvalBatchConfiguration {
       IngestService ingest,
       PipelineService pipeline,
       DocumentDetailsReader details,
-      JdbcClient jdbc) {
-    return new EvalBatch(ingest, pipeline, details, jdbc);
+      JdbcClient jdbc,
+      ReconciliationService reconciliation) {
+    return new EvalBatch(ingest, pipeline, details, jdbc, reconciliation);
   }
 
   @Bean

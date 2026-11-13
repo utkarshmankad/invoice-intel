@@ -5,6 +5,7 @@ import dev.invoiceintel.eval.run.DocumentRecord;
 import dev.invoiceintel.eval.run.DocumentResult;
 import dev.invoiceintel.eval.run.DocumentRunner;
 import dev.invoiceintel.eval.run.EvalRun;
+import dev.invoiceintel.eval.run.ReconciliationCounts;
 import dev.invoiceintel.eval.run.ResultsDocumentRunner;
 import dev.invoiceintel.eval.run.RunConfig;
 import dev.invoiceintel.eval.run.RunDirectory;
@@ -181,6 +182,13 @@ public final class EvalCli {
       err.println("Not a folder: " + results);
       return FAILED;
     }
+    ReconciliationCounts reconciliation;
+    try {
+      reconciliation = results == null ? null : ReconciliationCounts.read(results).orElse(null);
+    } catch (IllegalArgumentException e) {
+      err.println(e.getMessage());
+      return FAILED;
+    }
     DocumentRunner runner =
         results == null ? runners.create(strategyName, model) : new ResultsDocumentRunner(results);
     EvalRun.Result result = EvalRun.execute(data.documents(), runner);
@@ -197,7 +205,7 @@ public final class EvalCli {
             List.copyOf(new TreeSet<>(result.usage().modelIds())),
             List.copyOf(new TreeSet<>(result.usage().promptVersions())),
             usdInr);
-    new RunDirectory(config, records).write(runDir);
+    new RunDirectory(config, records, reconciliation).write(runDir);
 
     out.printf(
         "Run %s: %d documents (%s) with runner %s, strategy %s, model %s%n",
