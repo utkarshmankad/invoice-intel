@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
@@ -59,12 +58,21 @@ public class SecurityConfig {
             auth ->
                 // `/error` renders the status of a rejected request (401, 403); guarding it
                 // would turn every rejection into a login redirect.
-                auth.requestMatchers("/actuator/health", "/actuator/health/**", "/error")
+                // The login page's stylesheet and HTMX are public so it renders before login.
+                auth.requestMatchers(
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/error",
+                        "/css/**",
+                        "/js/**",
+                        "/webjars/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
-        .formLogin(Customizer.withDefaults())
-        .logout(Customizer.withDefaults())
+        // The review UI's own Thymeleaf login page (architecture.md §6.8); Spring Security
+        // still handles the POST, the failure redirect and the logout.
+        .formLogin(form -> form.loginPage("/login").permitAll())
+        .logout(logout -> logout.permitAll())
         .build();
   }
 

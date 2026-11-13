@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!-- Shared page parts of the review UI (architecture.md §6.8). -->
+<head th:fragment="head(title)">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- HTMX requests send the CSRF token as a header (js/htmx-csrf.js, architecture.md §11). -->
+  <meta name="csrf-header" th:content="${_csrf.headerName}">
+  <meta name="csrf-token" th:content="${_csrf.token}">
+  <title th:text="${title} + ' · Invoice Intel'">Invoice Intel</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script th:src="@{/webjars/htmx.org/dist/htmx.min.js}" defer></script>
+  <script th:src="@{/js/htmx-csrf.js}" defer></script>
+</head>
+<body>
+<nav class="nav" th:fragment="nav">
+  <a class="brand" th:href="@{/}">Invoice Intel</a>
+  <ul class="nav-links">
+    <li><a th:href="@{/}">Home</a></li>
+  </ul>
+  <div class="nav-user">
+    <span class="user" th:text="${username}">admin</span>
+    <form th:action="@{/logout}" method="post">
+      <button type="submit" class="link-button">Log out</button>
+    </form>
+  </div>
+</nav>
+</body>
+</html>

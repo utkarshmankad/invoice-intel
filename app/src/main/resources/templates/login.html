@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Log in')}"></head>
+<body class="login-page">
+<main class="login-card">
+  <h1>Invoice Intel</h1>
+  <p class="alert alert-error" th:if="${param.error}">Wrong username or password.</p>
+  <p class="alert alert-info" th:if="${param.logout}">You have been logged out.</p>
+  <form th:action="@{/login}" method="post">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Log in</button>
+  </form>
+</main>
+</body>
+</html>
