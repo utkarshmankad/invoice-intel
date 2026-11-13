@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Document')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<main class="content">
+  <!-- REV-2 (architecture.md §6.8, ADR-29): masked page images and pseudonymized values only. -->
+  <p><a th:href="@{/review}">← Review queue</a></p>
+  <h1>Document <code class="doc-id" th:text="${document.id().value()}">id</code></h1>
+  <p class="doc-summary">
+    <span class="reason-code" th:text="${document.state()}">NEEDS_REVIEW</span>
+    <span th:if="${document.decision() != null}">
+      Score <span class="num" th:text="${document.decision().score()}">0.7290</span></span>
+  </p>
+  <ul class="reasons" th:if="${document.decision() != null}">
+    <li th:each="reason : ${document.decision().reasons()}">
+      <span class="reason-code" th:text="${reason.code()}">RULE_WARN</span>
+      <span class="reason-rule" th:if="${reason.ruleId() != null}"
+            th:text="${reason.ruleId()}">VAL-4</span>
+      <span th:text="${reason.message()}">message</span>
+    </li>
+  </ul>
+  <div class="review-layout">
+    <section class="review-pages" aria-label="Redacted pages">
+      <p class="muted" th:if="${pages.isEmpty()}">No redacted page images yet.</p>
+      <figure class="review-page" th:each="page : ${pages}">
+        <figcaption class="muted" th:text="'Page ' + ${page.pageNo()}">Page 1</figcaption>
+        <!-- The view box is the text layer page, the unit of evidence boxes; the masked image is
+             stretched over it, so the boxes land where the words are. -->
+        <svg class="page-overlay" role="img" xmlns="http://www.w3.org/2000/svg"
+             th:attr="viewBox='0 0 ' + ${page.width()} + ' ' + ${page.height()},
+                      aria-label='Redacted page ' + ${page.pageNo()}">
+          <image preserveAspectRatio="none" x="0" y="0"
+                 th:attr="href=@{/review/{id}/pages/{n}(id=${document.id().value()},n=${page.pageNo()})},
+                          width=${page.width()},height=${page.height()}"/>
+          <rect class="evidence" th:each="box : ${page.boxes()}"
+                th:attr="x=${box.x()},y=${box.y()},width=${box.w()},height=${box.h()},
+                         data-field=${box.path()}">
+            <title th:text="${box.path()}">invoiceNumber</title>
+          </rect>
+        </svg>
+      </figure>
+    </section>
+    <section class="review-fields" aria-label="Extracted fields">
+      <p class="muted" th:if="${rows.isEmpty()}">No extraction yet.</p>
+      <form class="field-form" th:unless="${rows.isEmpty()}">
+        <div class="field-row" th:each="row : ${rows}" th:attr="data-field=${row.path()}">
+          <label th:for="${row.htmlId()}" th:text="${row.path()}">invoiceNumber</label>
+          <input type="text" readonly th:id="${row.htmlId()}" th:name="${row.path()}"
+                 th:value="${row.value()}">
+          <span class="field-meta muted">
+            <span th:text="${row.source()}">LLM</span>
+            <span class="num" th:text="${row.confidence()}">0.90</span>
+            <span th:if="${row.hasBox()}" class="has-evidence" title="Has an evidence box">◼</span>
+          </span>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+<script th:src="@{/js/evidence.js}" defer></script>
+</body>
+</html>

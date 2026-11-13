@@ -2,15 +2,32 @@ package dev.invoiceintel.app;
 
 import static dev.invoiceintel.app.TestAdminConfiguration.ADMIN_PASSWORD;
 import static dev.invoiceintel.app.TestAdminConfiguration.ADMIN_USERNAME;
+import static dev.invoiceintel.app.TestcontainersConfiguration.RAW_BUCKET;
+import static dev.invoiceintel.app.TestcontainersConfiguration.REDACTED_BUCKET;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.invoiceintel.common.DocumentClass;
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.common.ExtractionId;
+import dev.invoiceintel.common.extraction.BoundingBox;
+import dev.invoiceintel.common.extraction.ChargeType;
+import dev.invoiceintel.common.extraction.Currency;
+import dev.invoiceintel.common.extraction.Evidence;
+import dev.invoiceintel.common.extraction.Field;
+import dev.invoiceintel.common.extraction.FieldSource;
+import dev.invoiceintel.common.extraction.InvoiceExtraction;
+import dev.invoiceintel.common.extraction.LineItem;
+import dev.invoiceintel.common.extraction.TaxLine;
+import dev.invoiceintel.common.extraction.TaxType;
+import dev.invoiceintel.storage.BlobKey;
+import dev.invoiceintel.storage.BlobStore;
 import dev.invoiceintel.validate.Decision;
 import dev.invoiceintel.validate.DecisionOutcome;
 import dev.invoiceintel.validate.DecisionReason;
 import dev.invoiceintel.validate.DecisionReason.Code;
 import dev.invoiceintel.validate.DecisionStore;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.CookieManager;
@@ -19,9 +36,16 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,10 +54,11 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * G6, REV-1, architecture.md §6.8: the review UI's layout, login page, navigation behind login and
- * review queue page.
+ * G6, REV-1, REV-2, architecture.md §6.8: the review UI's layout, login page, navigation behind
+ * login, review queue page and document page with its masked page images and evidence overlay.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -48,8 +73,11 @@ class ReviewUiIT {
       Pattern.compile(
           "name=\"_csrf\"[^>]*value=\"([^\"]+)\"|value=\"([^\"]+)\"[^>]*name=\"_csrf\"");
 
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+
   @LocalServerPort int port;
   @Autowired JdbcClient jdbc;
+  @Autowired BlobStore blobStore;
 
   @Test
   void loginPage_anonymous_rendersUiLoginFormWithAssets() throws Exception {
@@ -214,6 +242,218 @@ class ReviewUiIT {
     var response = send(loggedInClient(), get("/review?sort=AMOUNT"));
 
     assertThat(response.statusCode()).isEqualTo(400);
+  }
+
+  @Test
+  void documentPage_afterLogin_overlaysEvidenceBoxesInTextLayerUnitsOnMaskedPage()
+      throws Exception {
+    var id = document("NEEDS_REVIEW", "e");
+    textLayer(
+        id,
+        "[{\"pageNo\": 1, \"width\": 595.28, \"height\": 841.89,"
+            + " \"source\": \"PDF_TEXT\", \"words\": []}]");
+    redactedPage(id, 1);
+    extracted(id, extraction(new Evidence(1, new BoundingBox(400, 700.5, 80.25, 12), List.of())));
+
+    var page = send(loggedInClient(), get("/review/" + id.value()));
+
+    assertThat(page.statusCode()).isEqualTo(200);
+    assertThat(page.body())
+        .contains(
+            "<title>Document · Invoice Intel</title>",
+            // The view box is the text layer page and the masked image fills it, so a box in
+            // page units lands on the same spot of the image (REV-2: boxes align).
+            "viewBox=\"0 0 595.28 841.89\"",
+            "preserveAspectRatio=\"none\" x=\"0\" y=\"0\"",
+            "href=\"/review/" + id.value() + "/pages/1\" width=\"595.28\" height=\"841.89\"",
+            "x=\"400\" y=\"700.5\" width=\"80.25\" height=\"12\" data-field=\"grandTotal\"",
+            "id=\"field-grandTotal\"",
+            "value=\"1180.00\"",
+            "value=\"TEST-INV-0001\"",
+            "data-field=\"lineItems[0].description\"",
+            "src=\"/js/evidence.js\"");
+  }
+
+  @Test
+  void documentPage_boxOnAnotherPage_isDrawnOnlyThere() throws Exception {
+    var id = document("NEEDS_REVIEW", "f");
+    textLayer(
+        id,
+        "[{\"pageNo\": 1, \"width\": 2480, \"height\": 3508, \"source\": \"OCR\","
+            + " \"words\": []}, {\"pageNo\": 2, \"width\": 2480, \"height\": 3508,"
+            + " \"source\": \"OCR\", \"words\": []}]");
+    redactedPage(id, 1);
+    redactedPage(id, 2);
+    extracted(id, extraction(new Evidence(2, new BoundingBox(100, 200, 300, 40), List.of())));
+
+    var body = send(loggedInClient(), get("/review/" + id.value())).body();
+
+    var page2 = body.indexOf("aria-label=\"Redacted page 2\"");
+    var box = body.indexOf("x=\"100\" y=\"200\" width=\"300\" height=\"40\"");
+    assertThat(body.indexOf("aria-label=\"Redacted page 1\"")).isPositive().isLessThan(page2);
+    assertThat(box).isGreaterThan(page2);
+  }
+
+  @Test
+  void documentPage_beforePiiAndExtraction_saysSoAndUnknownIsNotFound() throws Exception {
+    var id = document("RECEIVED", "1");
+    var client = loggedInClient();
+
+    var page = send(client, get("/review/" + id.value()));
+
+    assertThat(page.statusCode()).isEqualTo(200);
+    assertThat(page.body()).contains("No redacted page images yet.", "No extraction yet.");
+    assertThat(send(client, get("/review/" + UUID.randomUUID())).statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void pageImage_servesMaskedPngOnly() throws Exception {
+    var id = document("NEEDS_REVIEW", "2");
+    byte[] png = redactedPage(id, 1);
+    // A raw page render (PAGE_IMAGE) is never served (REV-2: no unredacted images).
+    rawPage(id, 2);
+    var client = loggedInClient();
+
+    var image = client.send(get("/review/" + id.value() + "/pages/1"), BodyHandlers.ofByteArray());
+    var raw = client.send(get("/review/" + id.value() + "/pages/2"), BodyHandlers.ofByteArray());
+    var api =
+        newClient()
+            .send(
+                HttpRequest.newBuilder(uri("/api/documents/" + id.value() + "/pages/1/redacted"))
+                    .header("Authorization", basicAuth())
+                    .build(),
+                BodyHandlers.ofByteArray());
+    var apiRaw =
+        newClient()
+            .send(
+                HttpRequest.newBuilder(uri("/api/documents/" + id.value() + "/pages/2/redacted"))
+                    .header("Authorization", basicAuth())
+                    .build(),
+                BodyHandlers.ofByteArray());
+
+    assertThat(image.statusCode()).isEqualTo(200);
+    assertThat(image.headers().firstValue("Content-Type")).hasValue("image/png");
+    assertThat(image.headers().firstValue("Cache-Control")).hasValue("no-store");
+    assertThat(image.body()).isEqualTo(png);
+    assertThat(raw.statusCode()).isEqualTo(404);
+    assertThat(api.statusCode()).isEqualTo(200);
+    assertThat(api.body()).isEqualTo(png);
+    assertThat(apiRaw.statusCode()).isEqualTo(404);
+  }
+
+  @Test
+  void pageImage_anonymous_redirectsToLogin() throws Exception {
+    var id = document("NEEDS_REVIEW", "3");
+    redactedPage(id, 1);
+
+    var response = send(newClient(), get("/review/" + id.value() + "/pages/1"));
+
+    assertThat(response.statusCode()).isEqualTo(302);
+  }
+
+  private void textLayer(DocumentId id, String pagesJson) {
+    jdbc.sql(
+            "INSERT INTO text_layer (id, document_id, run_no, layer)"
+                + " VALUES (?, ?, 1, CAST(? AS JSONB))")
+        .params(UUID.randomUUID(), id.value(), "{\"pages\": " + pagesJson + "}")
+        .update();
+  }
+
+  private byte[] redactedPage(DocumentId id, int pageNo) throws IOException {
+    var key = new BlobKey(REDACTED_BUCKET, "redacted/" + id.value() + "/pages/" + pageNo + ".png");
+    return storePage(id, "REDACTED_PAGE", pageNo, key);
+  }
+
+  /** A raw page render's row; its blob isn't needed, the reader must not even look it up. */
+  private void rawPage(DocumentId id, int pageNo) {
+    jdbc.sql(
+            "INSERT INTO blob_ref (id, document_id, kind, bucket, key, page_no)"
+                + " VALUES (?, ?, 'PAGE_IMAGE', ?, ?, ?)")
+        .params(
+            UUID.randomUUID(),
+            id.value(),
+            RAW_BUCKET,
+            "raw/" + id.value() + "/pages/" + pageNo + ".png",
+            pageNo)
+        .update();
+  }
+
+  private byte[] storePage(DocumentId id, String kind, int pageNo, BlobKey key) throws IOException {
+    var image = new BufferedImage(20, 28, BufferedImage.TYPE_INT_RGB);
+    var out = new ByteArrayOutputStream();
+    ImageIO.write(image, "png", out);
+    byte[] png = out.toByteArray();
+    blobStore.put(key, png, "image/png");
+    jdbc.sql(
+            "INSERT INTO blob_ref (id, document_id, kind, bucket, key, page_no)"
+                + " VALUES (?, ?, ?, ?, ?, ?)")
+        .params(UUID.randomUUID(), id.value(), kind, key.bucket(), key.key(), pageNo)
+        .update();
+    return png;
+  }
+
+  private void extracted(DocumentId id, InvoiceExtraction extraction) {
+    var now = Timestamp.from(Instant.now());
+    jdbc.sql(
+            "INSERT INTO stage_run (id, document_id, stage, run_no, status, started_at, ended_at)"
+                + " VALUES (?, ?, 'EXTRACT', 1, 'SUCCEEDED', ?, ?)")
+        .params(UUID.randomUUID(), id.value(), now, now)
+        .update();
+    jdbc.sql(
+            "INSERT INTO extraction"
+                + " (id, document_id, run_no, strategy, model_id, prompt_version, result)"
+                + " VALUES (?, ?, 1, 'TEXT', 'example-local-8b', 'invoice-extraction/v1',"
+                + " CAST(? AS JSONB))")
+        .params(UUID.randomUUID(), id.value(), JSON.writeValueAsString(extraction))
+        .update();
+  }
+
+  /** A synthetic extraction whose grand total carries {@code totalEvidence}. */
+  private static InvoiceExtraction extraction(Evidence totalEvidence) {
+    var line =
+        new LineItem(
+            Field.llm(1, 0.9),
+            Field.llm(ChargeType.PRODUCT, 0.9),
+            new Field<>("Example widget", 0.8, FieldSource.LLM, totalEvidence),
+            null,
+            Field.llm(new BigDecimal("1000.00"), 0.9),
+            Field.llm(new BigDecimal("1"), 0.9),
+            null,
+            Field.llm(new BigDecimal("1000.00"), 0.9),
+            List.of(
+                new TaxLine(
+                    Field.llm(TaxType.IGST, 0.9),
+                    Field.llm(new BigDecimal("18"), 0.9),
+                    Field.llm(new BigDecimal("180.00"), 0.9))),
+            Field.llm(new BigDecimal("1180.00"), 0.9));
+    return new InvoiceExtraction(
+        Field.llm(DocumentClass.TAX_INVOICE, 0.9),
+        Field.llm("TEST-INV-0001", 0.9),
+        Field.llm(LocalDate.of(2026, 1, 15), 0.9),
+        Field.llm("TEST-ORDER-0001", 0.9),
+        null,
+        Field.llm("Example Seller Pvt Ltd", 0.9),
+        null,
+        null,
+        null,
+        null,
+        null,
+        Field.llm("Karnataka", 0.9),
+        null,
+        Field.llm(Currency.INR, 0.9),
+        Field.llm(new BigDecimal("1000.00"), 0.9),
+        Field.llm(new BigDecimal("180.00"), 0.9),
+        new Field<>(new BigDecimal("1180.00"), 0.95, FieldSource.LLM, totalEvidence),
+        null,
+        null,
+        List.of(line));
+  }
+
+  private static String basicAuth() {
+    return "Basic "
+        + Base64.getEncoder()
+            .encodeToString(
+                (ADMIN_USERNAME + ":" + ADMIN_PASSWORD).getBytes(StandardCharsets.UTF_8));
   }
 
   private DocumentId document(String status, String shaChar) {

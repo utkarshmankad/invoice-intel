@@ -2,6 +2,7 @@ package dev.invoiceintel.text;
 
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.text.internal.TextLayerRepository;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -34,5 +35,13 @@ public final class TextLayerStore {
     return layers
         .latest(Objects.requireNonNull(documentId, "documentId"))
         .map(json -> JSON.readValue(json, TextLayer.class));
+  }
+
+  /**
+   * The page sizes of the latest Text run's layer, by page number; empty without one. Reads no
+   * words, so the result holds no document text (PII-8).
+   */
+  public List<PageSize> pageSizes(DocumentId documentId) {
+    return layers.latestPageSizes(Objects.requireNonNull(documentId, "documentId"));
   }
 }
