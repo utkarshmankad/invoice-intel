@@ -40,8 +40,15 @@ public class TestcontainersConfiguration {
   GenericContainer<?> seaweedfs() {
     return new GenericContainer<>(DockerImageName.parse("chrislusf/seaweedfs:4.51"))
         .withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("weed"))
+        // -volume.max as in compose.yaml (architecture.md §9.1): each bucket grows 7 volumes on its
+        // first write, and the default 8 slots run out once a shared context has used `raw`.
         .withCommand(
-            "server", "-dir=/data", "-ip.bind=0.0.0.0", "-master.volumeSizeLimitMB=64", "-s3")
+            "server",
+            "-dir=/data",
+            "-ip.bind=0.0.0.0",
+            "-master.volumeSizeLimitMB=64",
+            "-volume.max=64",
+            "-s3")
         .withExposedPorts(S3_PORT)
         .waitingFor(
             Wait.forHttp("/healthz").forPort(S3_PORT).withStartupTimeout(Duration.ofMinutes(2)));

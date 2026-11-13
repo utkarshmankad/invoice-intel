@@ -4,6 +4,7 @@ import dev.invoiceintel.common.DocumentClass;
 import dev.invoiceintel.common.DocumentId;
 import dev.invoiceintel.common.extraction.InvoiceExtraction;
 import dev.invoiceintel.ingest.IngestService;
+import dev.invoiceintel.pii.RedactedPageReader;
 import dev.invoiceintel.pipeline.DocumentDetails;
 import dev.invoiceintel.pipeline.DocumentDetailsReader;
 import dev.invoiceintel.pipeline.DocumentState;
@@ -14,8 +15,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,8 +32,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Document upload (ING-1..4), list (UC1), detail (UC2) and reprocess (NFR-5), architecture.md §6.1,
- * §8. No response carries document text, original files, page images or vault values; the
- * extraction holds pseudonymized values only (specs.md §6).
+ * §8, and masked page images (REV-2). No response carries document text, original files, unmasked
+ * page images or vault values; the extraction holds pseudonymized values only (specs.md §6).
  */
 @RestController
 @RequestMapping("/api/documents")
@@ -42,12 +45,17 @@ public class DocumentController {
   private final IngestService ingest;
   private final PipelineService pipeline;
   private final DocumentDetailsReader details;
+  private final RedactedPageReader pages;
 
   public DocumentController(
-      IngestService ingest, PipelineService pipeline, DocumentDetailsReader details) {
+      IngestService ingest,
+      PipelineService pipeline,
+      DocumentDetailsReader details,
+      RedactedPageReader pages) {
     this.ingest = ingest;
     this.pipeline = pipeline;
     this.details = details;
+    this.pages = pages;
   }
 
   /**
@@ -87,6 +95,19 @@ public class DocumentController {
     return details
         .find(new DocumentId(id))
         .map(DocumentDetailView::of)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+  }
+
+  /**
+   * The masked image of page {@code pageNo} as PNG (REV-2, architecture.md §8, ADR-29); 404 if the
+   * document or page has none. Only {@code REDACTED_PAGE} blobs are served, never originals or page
+   * renders.
+   */
+  @GetMapping(value = "/{id}/pages/{pageNo}/redacted", produces = MediaType.IMAGE_PNG_VALUE)
+  public ResponseEntity<byte[]> redactedPage(@PathVariable UUID id, @PathVariable int pageNo) {
+    return pages
+        .image(new DocumentId(id), pageNo)
+        .map(png -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(png))
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
   }
 

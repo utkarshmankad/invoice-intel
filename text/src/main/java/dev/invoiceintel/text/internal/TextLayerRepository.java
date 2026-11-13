@@ -1,6 +1,8 @@
 package dev.invoiceintel.text.internal;
 
 import dev.invoiceintel.common.DocumentId;
+import dev.invoiceintel.text.PageSize;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,5 +37,25 @@ public final class TextLayerRepository {
         .param(documentId.value())
         .query(String.class)
         .optional();
+  }
+
+  /** Page number, width and height of every page of the highest run's layer, by page number. */
+  public List<PageSize> latestPageSizes(DocumentId documentId) {
+    // Reads only the size members of each page so the words (which hold PII) never leave Postgres.
+    return jdbc.sql(
+            """
+            SELECT (p ->> 'pageNo')::int AS page_no,
+                   (p ->> 'width')::float8 AS width,
+                   (p ->> 'height')::float8 AS height
+            FROM text_layer t, jsonb_array_elements(t.layer -> 'pages') p
+            WHERE t.id = (SELECT id FROM text_layer WHERE document_id = ?
+                          ORDER BY run_no DESC LIMIT 1)
+            ORDER BY page_no
+            """)
+        .param(documentId.value())
+        .query(
+            (rs, row) ->
+                new PageSize(rs.getInt("page_no"), rs.getDouble("width"), rs.getDouble("height")))
+        .list();
   }
 }

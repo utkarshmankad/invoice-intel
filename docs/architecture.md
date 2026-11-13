@@ -1,6 +1,6 @@
 # Invoice Intel — Architecture
 
-> Status: Draft v0.1 · Last updated: 2026-11-13
+> Status: Draft v0.1 · Last updated: 2026-11-14
 >
 > This document defines **how** the system is built. Requirements and their IDs
 > (`PII-1`, `VAL-5`, …) come from `specs.md`; every design element below points back to them.
@@ -905,8 +905,21 @@ It logs the outcome, score and number of reasons only (PII-8).
   query (reasons expanded with `jsonb_array_elements`); it never reads extractions, text, the
   vault or object storage. A queued document's decision is current, because reprocessing moves
   it out of `NEEDS_REVIEW`. Sorting uses plain links (full page load); times show in UTC.
-- **Document page** (REV-2): redacted page image on the left with evidence boxes as an
-  SVG overlay; field form on the right. The UI never shows unredacted images.
+- **Document page** (REV-2, M7.3, ADR-29): `GET /review/{id}` (404 for an unknown document)
+  shows the state and decision, each masked page image on the left with the evidence boxes as
+  an SVG overlay, and a read-only field form on the right (editing comes with REV-3). Each page
+  is an `<svg>` whose `viewBox` is the text layer page's width and height; the masked PNG is an
+  `<image>` stretched over it (`preserveAspectRatio="none"`) and every evidence box of that page
+  is a `<rect>` in the same unit, so boxes land on the words whatever the render DPI. OCR boxes
+  are in pixels of the deskewed image (§6.2), so on a skewed scan they can sit off by the
+  corrected skew. Form rows use the validator's field paths (`grandTotal`,
+  `lineItems[0].taxLines[1].rate`), which REV-3 corrections reuse; `static/js/evidence.js`
+  highlights a field's box on hover or focus and the other way round. Images come from
+  `GET /review/{id}/pages/{n}` (session login, `Cache-Control: no-store`). `pii`'s
+  `RedactedPageReader` lists the pages that have a `REDACTED_PAGE` row with their sizes
+  (`TextLayerStore.pageSizes`, a JSONB query that reads only `pageNo`, `width` and `height`, never
+  the words) and serves only `REDACTED_PAGE` blobs. Those rows exist only once a PII run committed.
+  The UI never shows unredacted images, page renders or originals.
 - **Corrections** (REV-3): each edit writes a `field_correction` row (old, new, user, time);
   the current value is computed as latest correction over extraction.
 - **Export** (REV-4): `GET /api/labels/export` writes reviewed documents in the eval label
@@ -1132,6 +1145,10 @@ Document API (M4.8, ADR-21), in `app`'s `DocumentController`:
   run is `SUCCEEDED`, so outputs of superseded runs are never shown. `pipeline`'s
   `DocumentDetailsReader` reads them in one read-only `REPEATABLE READ` transaction; it never
   reads `text_layer`, `pii_span`, the vault or object storage. Unknown ID is 404.
+- `GET /api/documents/{id}/pages/{n}/redacted` (M7.3, ADR-29) returns page `n`'s masked PNG
+  (`REDACTED_PAGE` only, `Cache-Control: no-store`), 404 if the document or page has none. The
+  review UI serves the same bytes at `/review/{id}/pages/{n}` because `/api/**` takes HTTP Basic
+  only (ADR-12).
 - `POST /api/documents/{id}/reprocess?fromStage=` calls `PipelineService.reprocess` and answers
   202 `{id, fromStage}`; 404 for an unknown document, 409 (`ReprocessNotAllowedException`,
   detail names stages and states only) when the document hasn't reached the stage or the stage
@@ -1509,6 +1526,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-26 | Reconciliation run and report (M6.3): a run reconciles every document in a decided state (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`, `RECONCILED`) with its current extraction and replaces all `reconciliation_match` rows in one transaction; the match rate is documents in `MATCHED` rows over all reconciled documents; the eval gets it from `reconciliation.json`, written by the app's eval batch after its last original | Only `AUTO_APPROVED`/`REVIEWED` documents; every document with a succeeded Extract run; keep old runs' rows (needs a run column outside §7); `eval` reads the table over JDBC | Documents waiting for review still belong to an order, and leaving them out would turn their orders into `ORDER_WITHOUT_INVOICE`; failed and mid-reprocess documents have no current, validated extraction. One run in the table keeps §7's columns. `eval` has no database access (ADR-24), so the batch hands it counts the same way it hands over results. |
 | ADR-27 | Review UI layout (M7.1): HTMX 2.0.11 (latest 2.x, checked 2026-11-13) served from the `org.webjars.npm:htmx.org` webjar with `webjars-locator-lite` (version from the Boot BOM); shared head and nav as plain Thymeleaf fragments (`th:replace`), no layout dialect or Thymeleaf Spring Security extras (the user name comes from a `@ControllerAdvice` model attribute); CSRF token for HTMX requests from `<meta>` tags | HTMX copied into `static/`; a CDN `<script>`; HTMX 4.x; Thymeleaf Layout Dialect | Dependency version, lockfile and Dependabot cover the script like any other library; no third-party host at run time; 4.x was days old; fewer dependencies for one shared header. |
 | ADR-28 | Review queue (M7.2): a server-rendered page at `/review` with sort links (`sort`, `dir` query parameters), read by `pipeline.ReviewQueueReader` in one SQL query over `document` and `decision`, capped at 100 rows | HTMX partial table swaps; client-side sorting; reading through `DocumentDetailsReader` per document; paging | The queue of a single-user tool is short; plain links keep the URL shareable and need no fragment endpoint; one query avoids N+1 reads and keeps the reader to the two tables REV-1 needs. Paging can come later if the queue outgrows 100. |
+| ADR-29 | Document page overlay (M7.3): the SVG `viewBox` is the text layer page (its `width`/`height`, read by a JSONB query that leaves the words in Postgres) and the masked PNG is stretched over it, so evidence boxes are drawn in their stored unit; `pii.RedactedPageReader` is the read-only view of `REDACTED_PAGE` rows and blobs for `app`; images go out twice, under `/review/**` (session) and `/api/documents/{id}/pages/{n}/redacted` (Basic) | Scale boxes to image pixels in Java from the render DPI; store page sizes on `blob_ref`; let the browser call `/api/**` with the session; overlay with absolutely positioned `<div>`s | The DPI is config and OCR pages have no DPI, while the text layer page is the boxes' own coordinate space, so no conversion can drift; no schema change; ADR-12 keeps `/api/**` stateless Basic; SVG scales with the image and keeps boxes aligned at any width. |
 
 ---
 

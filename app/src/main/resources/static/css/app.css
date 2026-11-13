@@ -105,3 +105,43 @@ a:hover { text-decoration: underline; }
   background: var(--bg);
   border: 1px solid var(--border);
 }
+
+/* Document page (REV-2) */
+.doc-summary { display: flex; gap: 12px; align-items: center; }
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 24px;
+  margin-top: 16px;
+}
+.review-page { margin: 0 0 16px; }
+.page-overlay {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.evidence {
+  fill: rgba(21, 112, 239, 0.12);
+  stroke: #1570ef;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.evidence.active { fill: rgba(21, 112, 239, 0.35); stroke-width: 3; }
+.field-form { display: grid; gap: 6px; }
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.field-row label { font-size: 13px; overflow-wrap: anywhere; }
+.field-row.active { background: #eff8ff; }
+.field-meta { font-size: 12px; display: flex; gap: 6px; }
+.has-evidence { color: #1570ef; }
+@media (max-width: 900px) {
+  .review-layout { grid-template-columns: 1fr; }
+}
