@@ -1,7 +1,7 @@
 # Versions checked 2026-10-28 (architecture.md ADR-01). Dependabot keeps them current.
 [versions]
 spring-boot = "4.1.2"
-spotless = "8.10.4"
+spotless = "8.11.0"
 google-java-format = "1.36.1" # 1.37.0 fails under Spotless 8.10.4 on JDK 25
 spotbugs-plugin = "6.5.13"
 spotbugs = "4.10.5"
@@ -12,19 +12,19 @@ pitest-junit5 = "1.2.3"
 jacoco = "0.8.16"
 archunit = "1.5.1"
 pdfbox = "3.0.8"
-tess4j = "5.20.0" # ADR-01, checked 2026-10-28
+tess4j = "5.21.0" # ADR-01, checked 2026-10-28
 opencv = "4.9.0-0" # org.openpnp:opencv, latest on Maven Central, checked 2026-10-28
-aws-sdk = "2.56.0" # checked 2026-10-28
-tika = "4.1.0" # checked 2026-10-28
-jobrunr = "9.0.2" # checked 2026-10-28 (ADR-01)
+aws-sdk = "2.57.12" # checked 2026-10-28
+tika = "4.2.0" # checked 2026-10-28
+jobrunr = "9.0.3" # checked 2026-10-28 (ADR-01)
 tink = "1.24.0" # checked 2026-10-28
-djl = "0.39.0" # checked 2026-10-28 (ADR-01, ADR-15); ONNX Runtime 1.21.1 comes with the engine
+djl = "0.40.0" # checked 2026-10-28 (ADR-01, ADR-15); ONNX Runtime 1.21.1 comes with the engine
 spring-ai = "2.0.2" # checked 2026-10-30; 2.0.x targets Spring Boot 4
 wiremock = "3.13.2" # checked 2026-10-30; standalone jar shades Jetty
 gatling-plugin = "3.16.0"
 picocli = "4.7.7" # checked 2026-11-03 (architecture §3, EVAL-1)
 htmx = "2.0.11" # org.webjars.npm:htmx.org, latest 2.x, checked 2026-11-13 (ADR-27; 4.x is days old)
-jackson2-buildsrc = "2.22.3" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
+jackson2-buildsrc = "2.23.0" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
 [libraries]
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
