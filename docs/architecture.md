@@ -897,7 +897,14 @@ It logs the outcome, score and number of reasons only (PII-8).
   carries the CSRF header name and token as `<meta>` tags; `static/js/htmx-csrf.js` adds them to
   each HTMX request (§11). Thymeleaf forms with `th:action` get the hidden `_csrf` field
   automatically.
-- **Queue page** (REV-1): documents in `NEEDS_REVIEW` with reason codes, sortable.
+- **Queue page** (REV-1, M7.2, ADR-28): `GET /review` lists documents in `NEEDS_REVIEW` with
+  upload time, class hint, decision score and every decision reason (code, rule ID, message),
+  at most 100. `sort` is `RECEIVED` (default) or `SCORE`, `dir` `ASC` (default) or `DESC`;
+  other values are a 400. Ties fall back to the oldest upload; documents without a decision row
+  sort last. `pipeline`'s `ReviewQueueReader` reads `document` joined with `decision` in one
+  query (reasons expanded with `jsonb_array_elements`); it never reads extractions, text, the
+  vault or object storage. A queued document's decision is current, because reprocessing moves
+  it out of `NEEDS_REVIEW`. Sorting uses plain links (full page load); times show in UTC.
 - **Document page** (REV-2): redacted page image on the left with evidence boxes as an
   SVG overlay; field form on the right. The UI never shows unredacted images.
 - **Corrections** (REV-3): each edit writes a `field_correction` row (old, new, user, time);
@@ -1501,6 +1508,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-25 | Reconciliation (M6.2): the matcher reads, per order token, the rows of the latest order-history import that has the token; amounts that agree with an invoice dated outside the date tolerance get a fifth status, `DATE_MISMATCH` | Read every import (re-imports double rows); replace earlier rows of the same layout on import (needs a layout column outside §7); fold date failures into `AMOUNT_MISMATCH` or `MATCHED` | Needs no schema change and keeps imports append-only; RETAIL and DIGITAL exports have disjoint orders, so both stay readable. REC-3's four outcomes stay; a date outside tolerance is neither an amount mismatch nor a clean match, and the report needs to show it. |
 | ADR-26 | Reconciliation run and report (M6.3): a run reconciles every document in a decided state (`AUTO_APPROVED`, `NEEDS_REVIEW`, `REVIEWED`, `RECONCILED`) with its current extraction and replaces all `reconciliation_match` rows in one transaction; the match rate is documents in `MATCHED` rows over all reconciled documents; the eval gets it from `reconciliation.json`, written by the app's eval batch after its last original | Only `AUTO_APPROVED`/`REVIEWED` documents; every document with a succeeded Extract run; keep old runs' rows (needs a run column outside §7); `eval` reads the table over JDBC | Documents waiting for review still belong to an order, and leaving them out would turn their orders into `ORDER_WITHOUT_INVOICE`; failed and mid-reprocess documents have no current, validated extraction. One run in the table keeps §7's columns. `eval` has no database access (ADR-24), so the batch hands it counts the same way it hands over results. |
 | ADR-27 | Review UI layout (M7.1): HTMX 2.0.11 (latest 2.x, checked 2026-11-13) served from the `org.webjars.npm:htmx.org` webjar with `webjars-locator-lite` (version from the Boot BOM); shared head and nav as plain Thymeleaf fragments (`th:replace`), no layout dialect or Thymeleaf Spring Security extras (the user name comes from a `@ControllerAdvice` model attribute); CSRF token for HTMX requests from `<meta>` tags | HTMX copied into `static/`; a CDN `<script>`; HTMX 4.x; Thymeleaf Layout Dialect | Dependency version, lockfile and Dependabot cover the script like any other library; no third-party host at run time; 4.x was days old; fewer dependencies for one shared header. |
+| ADR-28 | Review queue (M7.2): a server-rendered page at `/review` with sort links (`sort`, `dir` query parameters), read by `pipeline.ReviewQueueReader` in one SQL query over `document` and `decision`, capped at 100 rows | HTMX partial table swaps; client-side sorting; reading through `DocumentDetailsReader` per document; paging | The queue of a single-user tool is short; plain links keep the URL shareable and need no fragment endpoint; one query avoids N+1 reads and keeps the reader to the two tables REV-1 needs. Paging can come later if the queue outgrows 100. |
 
 ---
 

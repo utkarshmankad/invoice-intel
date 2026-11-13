@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Review queue')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: nav}"></nav>
+<main class="content">
+  <h1>Review queue</h1>
+  <!-- REV-1 (architecture.md §6.8): IDs, scores and reason codes only, no extracted values. -->
+  <p class="muted" th:if="${rows.isEmpty()}">No documents are waiting for review.</p>
+  <th:block th:unless="${rows.isEmpty()}">
+    <p class="muted" th:text="${rows.size()} + ' document(s) waiting for review'
+        + (${rows.size() >= limit} ? ', showing the first ' + ${limit} : '') + '.'">
+      3 document(s) waiting for review.</p>
+    <table class="queue">
+      <thead>
+      <tr>
+        <th>Document</th>
+        <th th:attr="aria-sort=${receivedAria}">
+          <a th:href="@{${receivedLink}}">Received<span class="sort-mark"
+              th:if="${receivedAria == 'ascending'}"> ▲</span><span class="sort-mark"
+              th:if="${receivedAria == 'descending'}"> ▼</span></a>
+        </th>
+        <th>Class</th>
+        <th th:attr="aria-sort=${scoreAria}">
+          <a th:href="@{${scoreLink}}">Score<span class="sort-mark"
+              th:if="${scoreAria == 'ascending'}"> ▲</span><span class="sort-mark"
+              th:if="${scoreAria == 'descending'}"> ▼</span></a>
+        </th>
+        <th>Reasons</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="row : ${rows}">
+        <td><code class="doc-id" th:text="${row.id()}">id</code></td>
+        <td th:text="${row.received()}">2026-01-01 10:00 UTC</td>
+        <td th:text="${row.documentClass()}">TAX_INVOICE</td>
+        <td class="num" th:text="${row.score()}">0.7290</td>
+        <td>
+          <ul class="reasons">
+            <li th:each="reason : ${row.reasons()}">
+              <span class="reason-code" th:text="${reason.code()}">RULE_WARN</span>
+              <span class="reason-rule" th:if="${reason.ruleId() != null}"
+                    th:text="${reason.ruleId()}">VAL-4</span>
+              <span th:text="${reason.message()}">message</span>
+            </li>
+          </ul>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </th:block>
+</main>
+</body>
+</html>

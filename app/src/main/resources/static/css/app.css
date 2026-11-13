@@ -77,3 +77,31 @@ a:hover { text-decoration: underline; }
 .alert { padding: 8px 12px; border-radius: 6px; }
 .alert-error { color: var(--error); background: #fef3f2; }
 .alert-info { color: var(--info); background: #eff8ff; }
+
+.muted { color: var(--muted); }
+
+/* Review queue (REV-1) */
+.queue {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.queue th, .queue td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.queue th { font-weight: 600; white-space: nowrap; }
+.queue .num { font-variant-numeric: tabular-nums; }
+.doc-id { font-size: 13px; }
+.reasons { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.reason-code, .reason-rule {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
