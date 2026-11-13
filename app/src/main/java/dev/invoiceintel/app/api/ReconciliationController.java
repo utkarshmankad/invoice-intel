@@ -7,6 +7,7 @@ import dev.invoiceintel.reconcile.ReconciliationReport;
 import dev.invoiceintel.reconcile.ReconciliationService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,7 @@ public class ReconciliationController {
       List<RowView> rows) {
 
     public ReportView {
-      orders = new EnumMap<>(orders);
+      orders = Collections.unmodifiableMap(new EnumMap<>(orders));
       rows = List.copyOf(rows);
     }
 
