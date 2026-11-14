@@ -1,5 +1,6 @@
 package dev.invoiceintel.eval.run;
 
+import dev.invoiceintel.eval.label.LabelValidator;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -16,6 +17,14 @@ public record LabelledDocument(String sha256, boolean synthetic, JsonNode label)
   public LabelledDocument {
     // A defensive copy keeps the record immutable for runners and metrics.
     label = label.deepCopy();
+  }
+
+  /**
+   * Whether the label was exported from a reviewed document (REV-4, ADR-31): its invoice number,
+   * order number and original invoice reference are tokens already, and it has no PII spans.
+   */
+  public boolean pseudonymized() {
+    return LabelValidator.isPseudonymized(label);
   }
 
   /** A copy of the label, so callers can't change this document's ground truth. */

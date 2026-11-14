@@ -40,6 +40,43 @@ class EvalRunTest {
   }
 
   @Test
+  void tokenizer_printedLabel_usesRunnerKeyset() {
+    LabelledDocument document = Dataset.load(SyntheticDataset.write(dir)).documents().get(0);
+
+    assertThat(EvalRun.tokenizer(document, prefixing()).apply("A-1")).isEqualTo("tok:A-1");
+  }
+
+  @Test
+  void tokenizer_pseudonymizedLabel_keepsTokens() {
+    LabelledDocument printed = Dataset.load(SyntheticDataset.write(dir)).documents().get(0);
+    var label = (tools.jackson.databind.node.ObjectNode) printed.label();
+    label.put("pseudonymized", true);
+    var exported = new LabelledDocument(printed.sha256(), printed.synthetic(), label);
+
+    assertThat(exported.pseudonymized()).isTrue();
+    assertThat(EvalRun.tokenizer(exported, prefixing()).apply("tok:A-1")).isEqualTo("tok:A-1");
+  }
+
+  private static DocumentRunner prefixing() {
+    return new DocumentRunner() {
+      @Override
+      public String name() {
+        return "prefixing";
+      }
+
+      @Override
+      public DocumentResult run(LabelledDocument document) {
+        return DocumentResult.failed();
+      }
+
+      @Override
+      public String labelToken(String printed) {
+        return "tok:" + printed;
+      }
+    };
+  }
+
+  @Test
   void execute_runnerThrows_recordsFailureWithClassNameOnly() {
     List<LabelledDocument> documents = Dataset.load(SyntheticDataset.write(dir)).documents();
     DocumentRunner runner =

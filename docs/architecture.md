@@ -940,8 +940,22 @@ It logs the outcome, score and number of reasons only (PII-8).
   read-only and not submitted; a rejected value stores nothing and shows `?error=invalid`) and
   `POST /review/{id}/approve` (back to the queue); both are plain form posts with the CSRF field,
   and the form is read-only once the document left `NEEDS_REVIEW`.
-- **Export** (REV-4): `GET /api/labels/export` writes reviewed documents in the eval label
-  format (§9.2).
+- **Export** (REV-4, M7.5, ADR-31): `GET /api/labels/export` (HTTP Basic, like all of `/api/**`)
+  answers a ZIP (`labels-export.zip`, `Cache-Control: no-store`) with one **pseudonymized label**
+  `<sha256>.json` (§9.2) per `REVIEWED` document, so it unpacks straight into a labels folder.
+  `pipeline`'s `ReviewedExtractionReader` reads, in one read-only `REPEATABLE READ` snapshot, each
+  `REVIEWED` document's SHA-256 and the extraction of its latest succeeded Extract run with the
+  review corrections applied (the values the review page shows); a document without one is left
+  out. `app.api.ExportLabel` writes it as label format v1 with `"pseudonymized": true`,
+  `"synthetic": false` (the app can't tell generated documents apart; the owner edits the flag
+  when needed), the token fields `invoiceNumber`, `orderNumber` and `originalInvoiceRef` as the
+  PII stage's tokens and `piiSpans: []`. Amounts get exactly two decimals, quantities and rates
+  plain decimals, blank optional text becomes `null`. An extraction a valid label can't hold
+  (blank line description, an amount with more than two or a decimal with more than six
+  significant decimals, a repeated or non-positive line number, a missing required value) is
+  never rounded or dropped silently: the document goes into the ZIP's `SKIPPED.txt` as
+  `<documentId>\t<JSON path>: <rule>`, never a value. Nothing reads the vault or `pii_span`
+  (PII-7).
 
 ### 6.9 Eval (`eval`)
 
@@ -1030,7 +1044,9 @@ Command examples:
   p50/p95 latency = nearest-rank percentiles of the ran documents' runner wall time, which
   equals pipeline time only when the runner runs stages synchronously (NFR-3 excludes queue
   wait). PII recall/precision is not in the report yet (needs the Text stage's pages and
-  `pii_span` rows from the pipeline runner). `compare` reads both folders and prints the same
+  `pii_span` rows from the pipeline runner); pseudonymized labels (§9.2) have no spans and are
+  left out of it. For them `EvalRun` compares the token fields as they are instead of
+  tokenizing them with the runner's keyset (`LabelledDocument.pseudonymized()`, ADR-31). `compare` reads both folders and prints the same
   metric rows side by side.
 - CLI (M5.2): `dev.invoiceintel.eval.Main` → `cli.EvalCli` (picocli). `run --dataset DIR
   --strategy TEXT|VISION|HYBRID [--model ID] [--out eval-reports] [--run-id ID]` loads the
@@ -1150,7 +1166,7 @@ state needs a migration; `failed_stage`/`failure_code` are set exactly when stat
 | POST | `/api/order-history` | Import Amazon CSV | REC-1 |
 | POST | `/api/reconciliation/run` | Run reconciliation | REC-2 |
 | GET | `/api/reconciliation` | Reconciliation report | REC-3 |
-| GET | `/api/labels/export` | Export reviewed labels | REV-4 |
+| GET | `/api/labels/export` | Export reviewed documents as pseudonymized labels (ZIP, §6.8) | REV-4 |
 | POST | `/api/samples/publish` | Export irreversibly redacted sample set | UC6 |
 | GET | `/actuator/health` | Health (public) | |
 
@@ -1274,8 +1290,15 @@ unique line numbers, no repeated spans and the file name.
 - **Checking:** `./gradlew :eval:checkLabels --args="data/labels data/raw"` validates every
   label and that each label's SHA-256 matches a file in the raw folder. It prints label file
   names (hashes), JSON paths, rules and counts only, never a value or a raw file name.
-- `synthetic: true` marks generated or degraded documents (specs §4.3). REV-4's export
-  (§6.8) writes this same format.
+- `synthetic: true` marks generated or degraded documents (specs §4.3).
+- **Pseudonymized labels** (REV-4, ADR-31): REV-4's export (§6.8) writes this same format with
+  the optional key `"pseudonymized": true`. Then `invoiceNumber`, `orderNumber` and
+  `originalInvoiceRef` hold the PII stage's tokens instead of printed values, so the eval
+  compares them as they are, and `piiSpans` must be empty (schema `if`/`then`,
+  `LabelValidator`), so the label is left out of PII recall/precision. Such labels stay valid
+  only while `TOKEN_KEYSET` is unchanged (a rotation changes every token), unlike printed
+  labels. They hold pseudonymized values only but are kept git-ignored like `data/labels/`.
+  A missing key means `false`.
 
 ---
 
@@ -1559,6 +1582,7 @@ Testcontainers needs to find the Docker socket. With colima, set
 | ADR-28 | Review queue (M7.2): a server-rendered page at `/review` with sort links (`sort`, `dir` query parameters), read by `pipeline.ReviewQueueReader` in one SQL query over `document` and `decision`, capped at 100 rows | HTMX partial table swaps; client-side sorting; reading through `DocumentDetailsReader` per document; paging | The queue of a single-user tool is short; plain links keep the URL shareable and need no fragment endpoint; one query avoids N+1 reads and keeps the reader to the two tables REV-1 needs. Paging can come later if the queue outgrows 100. |
 | ADR-29 | Document page overlay (M7.3): the SVG `viewBox` is the text layer page (its `width`/`height`, read by a JSONB query that leaves the words in Postgres) and the masked PNG is stretched over it, so evidence boxes are drawn in their stored unit; `pii.RedactedPageReader` is the read-only view of `REDACTED_PAGE` rows and blobs for `app`; images go out twice, under `/review/**` (session) and `/api/documents/{id}/pages/{n}/redacted` (Basic) | Scale boxes to image pixels in Java from the render DPI; store page sizes on `blob_ref`; let the browser call `/api/**` with the session; overlay with absolutely positioned `<div>`s | The DPI is config and OCR pages have no DPI, while the text layer page is the boxes' own coordinate space, so no conversion can drift; no schema change; ADR-12 keeps `/api/**` stateless Basic; SVG scales with the image and keeps boxes aligned at any width. |
 | ADR-30 | Field corrections and approval (M7.4): corrections are applied by validator field path through the extraction's JSON shape (`extract.FieldCorrections`); `field_correction` gains `extraction_id`, so corrections belong to one extraction; a correction re-runs VAL-1..8 on the corrected extraction and replaces its rule results and decision, the document stays `NEEDS_REVIEW` until `approve` moves it to `REVIEWED`; PII token fields (`invoiceNumber`, `orderNumber`, `originalInvoiceRef`) can't be corrected | Per-field setters in Java; corrections keyed by document only; approval writing a new decision outcome (the `decision` constraint allows the VAL-8 outcomes only); re-tokenizing a typed real value in `pii` | The JSON shape is already the single definition of the extraction (ADR-19), so parsing reuses it and new schema fields need no code; a reprocess must not carry stale corrections onto a new extraction; rule results that match the shown values tell the reviewer whether the edit fixed the check; tokens can't be checked against a masked image and a typed value would be stored in clear. |
+| ADR-31 | Label export writes pseudonymized labels (owner decision 2026-11-14, option A, M7.5): label format v1 gains the optional `pseudonymized` flag; exported labels carry the PII stage's tokens for `invoiceNumber`, `orderNumber` and `originalInvoiceRef` and `piiSpans: []`; the eval compares their token fields untokenized and leaves them out of PII recall/precision; the endpoint answers a ZIP of `<sha256>.json` plus `SKIPPED.txt` for documents a valid label can't hold | Detokenized real-value labels written to a git-ignored folder by an `ApplicationRunner` (B, needs a PII-7 spec change); dropping REV-4 (C); label format v2; exporting tokens without a marker | Reviewed documents hold only tokens and the vault is never exported (PII-7, pii.md), so a faithful printed-value label can't come out of the API; without the marker the eval would tokenize tokens again and every token field would mismatch; one optional key keeps every existing label valid. Trade-off: exported labels outlive no `TOKEN_KEYSET` rotation and add nothing to PII metrics. |
 
 ---
 
