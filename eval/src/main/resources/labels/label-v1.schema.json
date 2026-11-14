@@ -6,6 +6,8 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "sha256", "synthetic", "fields", "piiSpans"],
+  "if": { "properties": { "pseudonymized": { "const": true } }, "required": ["pseudonymized"] },
+  "then": { "properties": { "piiSpans": { "maxItems": 0 } } },
   "properties": {
     "version": { "const": 1 },
     "sha256": {
@@ -20,6 +22,10 @@
     "notes": {
       "description": "Optional labelling notes. No personal data.",
       "type": ["string", "null"]
+    },
+    "pseudonymized": {
+      "description": "Optional, default false. true for labels exported from reviewed documents (REV-4, ADR-31): invoiceNumber, orderNumber and originalInvoiceRef hold the PII stage's tokens instead of printed values, so the eval compares them as they are, and piiSpans is empty, so the label is left out of PII recall/precision.",
+      "type": "boolean"
     },
     "fields": { "$ref": "#/$defs/fields" },
     "piiSpans": {

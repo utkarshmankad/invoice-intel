@@ -51,6 +51,14 @@ class LabelValidatorTest {
             l -> l.put("synthetic", "yes"),
             "$.synthetic: must be true or false"),
         broken(
+            "pseudonymized as text",
+            l -> l.put("pseudonymized", "yes"),
+            "$.pseudonymized: must be true or false"),
+        broken(
+            "pseudonymized with PII spans",
+            l -> l.put("pseudonymized", true),
+            "$.piiSpans: must be empty when pseudonymized is true"),
+        broken(
             "unknown top-level key", l -> l.put("labeller", "x"), "$.labeller: is not a known key"),
         broken(
             "field left out",
@@ -155,6 +163,24 @@ class LabelValidatorTest {
 
     assertThat(LabelValidator.validate(label, TAX_INVOICE))
         .anySatisfy(e -> assertThat(e).startsWith(expected));
+  }
+
+  @Test
+  void validate_pseudonymizedWithoutSpans_hasNoErrors() {
+    ObjectNode label = LabelFixtures.tree(TAX_INVOICE);
+    label.put("pseudonymized", true);
+    spans(label).removeAll();
+
+    assertThat(LabelValidator.validate(label, TAX_INVOICE)).isEmpty();
+    assertThat(LabelValidator.isPseudonymized(label)).isTrue();
+  }
+
+  @Test
+  void isPseudonymized_missingOrFalse_isFalse() {
+    ObjectNode label = LabelFixtures.tree(TAX_INVOICE);
+
+    assertThat(LabelValidator.isPseudonymized(label)).isFalse();
+    assertThat(LabelValidator.isPseudonymized(label.put("pseudonymized", false))).isFalse();
   }
 
   @Test

@@ -4,6 +4,7 @@ import dev.invoiceintel.pii.RedactedPageReader;
 import dev.invoiceintel.pipeline.DocumentDetailsReader;
 import dev.invoiceintel.pipeline.ReviewQueueReader;
 import dev.invoiceintel.pipeline.ReviewService;
+import dev.invoiceintel.pipeline.ReviewedExtractionReader;
 import dev.invoiceintel.storage.BlobStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,7 +13,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * Read side of the document API (UC2, architecture.md §8), the review queue (REV-1, §6.8) and the
- * document page's masked page images (REV-2, ADR-29), and review corrections and approval (REV-3).
+ * document page's masked page images (REV-2, ADR-29), review corrections and approval (REV-3) and
+ * the label export (REV-4, ADR-31).
  */
 @Configuration(proxyBeanMethods = false)
 public class DocumentApiConfiguration {
@@ -37,6 +39,12 @@ public class DocumentApiConfiguration {
   @Bean
   ReviewQueueReader reviewQueueReader(JdbcClient jdbc) {
     return new ReviewQueueReader(jdbc);
+  }
+
+  @Bean
+  ReviewedExtractionReader reviewedExtractionReader(
+      JdbcClient jdbc, PlatformTransactionManager transactionManager) {
+    return new ReviewedExtractionReader(jdbc, transactionManager);
   }
 
   @Bean

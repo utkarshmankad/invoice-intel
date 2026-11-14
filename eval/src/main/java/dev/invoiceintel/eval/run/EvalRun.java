@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
 /**
  * Runs every document of a dataset through a {@link DocumentRunner}, one after another, and scores
@@ -56,7 +57,7 @@ public final class EvalRun {
             FieldMetrics.scoreDocument(
                 new FieldMetrics.DocumentPair(
                     document.sha256(),
-                    DocumentValuesMapper.fromLabel(document.label(), runner::labelToken),
+                    DocumentValuesMapper.fromLabel(document.label(), tokenizer(document, runner)),
                     DocumentValuesMapper.fromExtraction(result.extraction().get())));
         mismatched = score.mismatchedFields();
         lineItems = score.lineItems();
@@ -75,5 +76,13 @@ public final class EvalRun {
               error));
     }
     return new Result(records, total);
+  }
+
+  /**
+   * Printed invoice and order numbers are tokenized with the run's keyset; an exported label's are
+   * tokens already, so they are compared as they are (REV-4, ADR-31).
+   */
+  static UnaryOperator<String> tokenizer(LabelledDocument document, DocumentRunner runner) {
+    return document.pseudonymized() ? UnaryOperator.identity() : runner::labelToken;
   }
 }

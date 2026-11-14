@@ -29,7 +29,7 @@ public final class LabelValidator {
 
   static final List<String> TOP_KEYS =
       List.of("version", "sha256", "synthetic", "fields", "piiSpans");
-  static final List<String> OPTIONAL_TOP_KEYS = List.of("notes");
+  static final List<String> OPTIONAL_TOP_KEYS = List.of("notes", "pseudonymized");
   static final List<String> FIELD_KEYS =
       List.of(
           "documentClass",
@@ -134,10 +134,27 @@ public final class LabelValidator {
     if (fields != null) {
       checkFields(fields);
     }
+    JsonNode pseudonymized = label.get("pseudonymized");
+    if (pseudonymized != null && !pseudonymized.isBoolean()) {
+      error("$.pseudonymized", "must be true or false");
+    }
     JsonNode spans = label.get("piiSpans");
     if (spans != null) {
       checkSpans(spans);
+      // An exported label has no PII text to hold (REV-4, ADR-31).
+      if (isPseudonymized(label) && spans.isArray() && !spans.isEmpty()) {
+        error("$.piiSpans", "must be empty when pseudonymized is true");
+      }
     }
+  }
+
+  /**
+   * Whether the label was exported from a reviewed document (REV-4, ADR-31): its token fields hold
+   * the PII stage's tokens and it has no PII spans. A missing key means {@code false}.
+   */
+  public static boolean isPseudonymized(JsonNode label) {
+    JsonNode flag = label.get("pseudonymized");
+    return flag != null && flag.isBoolean() && flag.booleanValue();
   }
 
   private void checkFields(JsonNode fields) {
