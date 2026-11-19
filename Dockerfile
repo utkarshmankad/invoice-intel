@@ -36,7 +36,11 @@ FROM eclipse-temurin:25-jre-resolute
 
 # apt/libapt-pkg7.0 pinned above the base image's 3.2.0 for CVE-2026-109518 (Trivy HIGH, checked
 # 2026-11-11); drop the pins once the eclipse-temurin image ships the fixed version.
-RUN apt-get update \
+# The base image also ships Canonical's pebble service manager as a loose file (not a dpkg
+# package). The app never runs it, and its Go stdlib carries CVE-2026-97054 (Trivy HIGH,
+# checked 2026-11-20), so it is deleted rather than ignored.
+RUN rm -rf /usr/bin/pebble /var/lib/pebble \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         apt=3.2.1ubuntu0.1 \
         libapt-pkg7.0=3.2.1ubuntu0.1 \
