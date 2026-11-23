@@ -1,6 +1,6 @@
 # Versions checked 2026-10-28 (architecture.md ADR-01). Dependabot keeps them current.
 [versions]
-spring-boot = "4.1.2"
+spring-boot = "4.2.0"
 spotless = "8.11.0"
 google-java-format = "1.36.1" # 1.37.0 fails under Spotless 8.10.4 on JDK 25
 spotbugs-plugin = "6.5.13"
@@ -14,12 +14,12 @@ archunit = "1.5.1"
 pdfbox = "3.0.8"
 tess4j = "5.21.0" # ADR-01, checked 2026-11-20
 opencv = "4.9.0-0" # org.openpnp:opencv, latest on Maven Central, checked 2026-10-28
-aws-sdk = "2.59.0" # checked 2026-11-20
+aws-sdk = "2.59.5" # checked 2026-11-20
 tika = "4.2.0" # checked 2026-11-20
-jobrunr = "9.0.4" # checked 2026-11-20 (ADR-01)
+jobrunr = "9.0.5" # checked 2026-11-20 (ADR-01)
 tink = "1.24.0" # checked 2026-10-28
 djl = "0.40.0" # checked 2026-11-20 (ADR-01, ADR-15); ONNX Runtime 1.21.1 comes with the engine
-spring-ai = "2.0.2" # checked 2026-10-30; 2.0.x targets Spring Boot 4
+spring-ai = "2.1.0" # checked 2026-10-30; 2.0.x targets Spring Boot 4
 wiremock = "3.13.2" # checked 2026-10-30; standalone jar shades Jetty
 gatling-plugin = "3.16.0"
 picocli = "4.7.7" # checked 2026-11-03 (architecture §3, EVAL-1)
