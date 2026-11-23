@@ -23,7 +23,7 @@ spring-ai = "2.0.2" # checked 2026-10-30; 2.0.x targets Spring Boot 4
 wiremock = "3.13.2" # checked 2026-10-30; standalone jar shades Jetty
 gatling-plugin = "3.16.0"
 picocli = "4.7.7" # checked 2026-11-03 (architecture §3, EVAL-1)
-htmx = "2.0.11" # org.webjars.npm:htmx.org, latest 2.x, checked 2026-11-13 (ADR-27; 4.x is days old)
+htmx = "4.0.2" # org.webjars.npm:htmx.org, latest 2.x, checked 2026-11-13 (ADR-27; 4.x is days old)
 jackson2-buildsrc = "2.23.0" # floor for the Gatling plugin's Jackson 2.22.2 (GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf)
 
 [libraries]
